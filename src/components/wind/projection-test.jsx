@@ -6,7 +6,6 @@ import VectorLayer from 'ol/layer/Vector';
 import VectorSource from 'ol/source/Vector';
 import { Point } from 'ol/geom';
 import { asArray } from 'ol/color';
-import { get, set } from 'lodash';
 import { Circle, Fill, Stroke, Style } from 'ol/style';
 import { Feature } from 'ol';
 import HeatmapLayer from 'ol/layer/Heatmap';
@@ -72,18 +71,6 @@ const ProjectionTest = ({ SetMap, mapId }) => {
               color: style.circleStrokeColor,
               width: style.circleStrokeWidth,
             }),
-          }),
-          fill: new Fill({
-            color: getInterpolateColor(
-              style.min,
-              style.max,
-              style.gradient,
-              value
-            ),
-          }),
-          stroke: new Stroke({
-            color: style.circleStrokeColor,
-            width: style.circleStrokeWidth,
           }),
         })
       );
@@ -207,23 +194,24 @@ const tmpStyles = [
     max: 20,
     circleRadius: 5,
     circleFillColor: 'rgba(0, 128, 0, 1)',
-    circleStrokeColor: 'rgba(180, 255, 180, 1)',
+    circleStrokeColor: 'gray',
     circleStrokeWidth: 1,
     gradient: [
-      'rgba(180, 255, 180, 1)', // 연초록
+      // 'rgba(180, 255, 180, 1)', // 연초록
+      'rgba(255, 255, 255, 1)',
       'rgba(0, 128, 0, 1)', // 진초록
     ],
   },
   {
     min: 20,
     max: 30,
-    circleRadius: 5,
+    circleRadius: 4,
     circleFillColor: 'rgba(255, 200, 0, 1)',
     circleStrokeColor: 'gray',
     circleStrokeWidth: 1,
     gradient: [
       // 'rgba(255, 245, 180, 1)', // 연노랑
-      'rgba(255, 255,255, 1)',
+      'rgba(255, 255, 255, 1)',
       'rgba(255, 200, 0, 1)', // 진노랑
     ],
   },
