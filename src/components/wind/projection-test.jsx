@@ -4,17 +4,19 @@ import axios from 'axios';
 
 import VectorLayer from 'ol/layer/Vector';
 import VectorSource from 'ol/source/Vector';
-import { Point } from 'ol/geom';
+import { Point, Polygon } from 'ol/geom';
 import { asArray } from 'ol/color';
 import { Circle, Fill, Stroke, Style } from 'ol/style';
 import { Feature } from 'ol';
 import HeatmapLayer from 'ol/layer/Heatmap';
+import { get as getProjection, transform } from 'ol/proj';
 
 import MapContext from '@/components/map/MapContext';
 
 const ProjectionTest = ({ SetMap, mapId }) => {
   const map = useContext(MapContext);
   const FIXED_GEOGRAPHIC_RADIUS_DEGREE = 0.1;
+  const FIXED_GEOGRAPHIC_RADIUS_METERS = 10000;
 
   const sourceCoords = new VectorSource({ wrapX: false });
   const layerCoords = new VectorLayer({
@@ -22,6 +24,8 @@ const ProjectionTest = ({ SetMap, mapId }) => {
     id: 'coords',
     zIndex: 1000,
   });
+
+  const customProj = getProjection('CUSTOM');
 
   useEffect(() => {
     if (!map.ol_uid) return;
@@ -51,7 +55,7 @@ const ProjectionTest = ({ SetMap, mapId }) => {
     return `rgba(${r}, ${g}, ${b}, 1)`;
   };
 
-  const setFeatureStyle = f => {
+  const setPointFeatureStyle = f => {
     const value = f.get('value');
     const style = tmpStyles.find(s => value >= s.min && value < s.max);
     if (style) {
@@ -77,15 +81,34 @@ const ProjectionTest = ({ SetMap, mapId }) => {
     }
   };
 
+  const setPolygonFeatureStyle = f => {
+    const value = f.get('value');
+    const style = tmpStyles.find(s => value >= s.min && value < s.max);
+    if (style) {
+      f.setStyle(
+        new Style({
+          fill: new Fill({
+            color: getInterpolateColor(
+              style.min,
+              style.max,
+              style.gradient,
+              value
+            ),
+          }),
+          stroke: new Stroke({
+            color: style.circleStrokeColor,
+            width: style.circleStrokeWidth,
+          }),
+        })
+      );
+    }
+  };
+
   const getTempData = async () => {
     document.body.style.cursor = 'progress';
 
     await axios
-      .post(`${import.meta.env.VITE_WIND_API_URL}/api/wind`, {
-        option: 'tmp',
-        windGap: '1',
-        tstep: '1',
-      })
+      .get(`${import.meta.env.VITE_WIND_API_URL}/api/proj/test`)
       .then(res => res.data)
       .then(data => {
         console.log(data);
@@ -96,23 +119,59 @@ const ProjectionTest = ({ SetMap, mapId }) => {
         const features = data.heatmapData.map(item => {
           const feature = new Feature({
             geometry: new Point([item.lon, item.lat]),
+            // geometry: new Point(
+            //   transform([item.lon, item.lat], 'EPSG:4326', customProj)
+            // ),
             value: item.value,
           });
           return feature;
         });
 
-        features.forEach(f => setFeatureStyle(f));
-        sourceCoords.addFeatures(features);
+        // const features = [];
+        // for (let i = 0; i < 100; i++) {
+        //   const item = data.heatmapData[i];
+        //   const feature = new Feature({
+        //     geometry: new Point([item.lon, item.lat]),
+        //     // geometry: new Point(
+        //     //   transform([item.lon, item.lat], 'EPSG:4326', customProj)
+        //     // ),
+        //     value: item.value,
+        //   });
+        //   features.push(feature);
+        // }
+
+        // features.forEach(f => setPointFeatureStyle(f));
+        // sourceCoords.addFeatures(features);
+
+        // 좌표 데이터 Polygon Feature 생성
+        const polygonFeatures = data.heatmapData.map(item => {
+          const feature = new Feature({
+            geometry: new Polygon([
+              [
+                [item.lon - 4500, item.lat + 4500],
+                [item.lon - 4500, item.lat - 4500],
+                [item.lon + 4500, item.lat - 4500],
+                [item.lon + 4500, item.lat + 4500],
+                [item.lon - 4500, item.lat + 4500],
+              ],
+            ]),
+            value: item.value,
+          });
+          return feature;
+        });
+
+        polygonFeatures.forEach(f => setPolygonFeatureStyle(f));
+        sourceCoords.addFeatures(polygonFeatures);
 
         // heatmapLayer 생성(tmp)
-        tmpStyles.forEach(style => {
-          const rangeFeatures = filterByRange(features, style.min, style.max);
+        // tmpStyles.forEach(style => {
+        //   const rangeFeatures = filterByRange(features, style.min, style.max);
 
-          if (rangeFeatures.length > 0) {
-            const layer = createHeatmapLayer(rangeFeatures, style.gradient);
-            map.addLayer(layer);
-          }
-        });
+        //   if (rangeFeatures.length > 0) {
+        //     const layer = createHeatmapLayer(rangeFeatures, style.gradient);
+        //     map.addLayer(layer);
+        //   }
+        // });
       })
       .catch(error => {
         console.error('Error fetching data:', error);
@@ -145,7 +204,8 @@ const ProjectionTest = ({ SetMap, mapId }) => {
     const resolution = view.getResolution();
     if (!resolution) return;
 
-    const radiusInPixels = FIXED_GEOGRAPHIC_RADIUS_DEGREE / resolution;
+    const radiusInPixels = FIXED_GEOGRAPHIC_RADIUS_METERS / resolution; // view => 'CUSTOM'
+    // const radiusInPixels = FIXED_GEOGRAPHIC_RADIUS_DEGREE / resolution; // view => 'EPSG:4326'
 
     map
       .getLayers()

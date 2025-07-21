@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Feature, Map as OlMap, View } from 'ol';
 import { Tile as TileLayer } from 'ol/layer';
 import { OSM, WMTS } from 'ol/source';
-import { get as getProjection } from 'ol/proj';
+import { get as getProjection, transform, transformExtent } from 'ol/proj';
 import WMTSTileGrid from 'ol/tilegrid/WMTS';
 import { getTopLeft } from 'ol/extent';
 import proj4 from 'proj4';
@@ -23,6 +23,10 @@ const MapNgii = ({ children, id = 'ngii' }) => {
     '+proj=tmerc +lat_0=38 +lon_0=127.5 +k=0.9996 +x_0=1000000 +y_0=2000000 +ellps=GRS80 +units=m +no_defs'
   );
   proj4.defs('EPSG:4326', '+proj=longlat +datum=WGS84 +no_defs');
+  proj4.defs(
+    'CUSTOM',
+    '+proj=lcc +lat_1=30 +lat_2=60 +lat_0=38 +lon_0=126 +x_0=0 +y_0=0 +a=6370000 +b=6370000 +units=m +no_defs'
+  );
   register(proj4);
 
   const epsg5179 = getProjection('EPSG:5179');
@@ -32,19 +36,25 @@ const MapNgii = ({ children, id = 'ngii' }) => {
   // epsg4326.setExtent([120.0, 30.0, 136.0, 42.5]);
   epsg4326.setExtent([90.0, 0.0, 150.0, 55.0]);
 
+  const customProj = getProjection('CUSTOM');
+  customProj.setExtent(
+    transformExtent([90.0, 0.0, 150.0, 55.0], 'EPSG:4326', customProj)
+  ); // [-4963916.717923589, -4079529.7265884588, 3372424.289850015, 2329106.5257526683]
+
   // EPSG:5179 타일 해상도 목록 (meters per pixel)
-  const resolutions5179 = [
+  const resolutions = [
     2088.96, 1044.48, 522.24, 261.12, 130.56, 65.28, 32.64, 16.32, 8.16, 4.08,
     2.04, 1.02, 0.51, 0.255,
   ];
   // 위도 37도 근처에서 경도 1도 ≈ 111,319.49m
   const meterPerDegree = 111319.49;
-  const resolutions4326 = resolutions5179.map(r => r / meterPerDegree);
+  const resolutions4326 = resolutions.map(r => r / meterPerDegree);
 
   // 측정소 데이터에 맞춘 extent
   const [mapLayer, setMapLayer] = useState([
     new TileLayer({
       source: new OSM({
+        projection: epsg4326,
         tilePixelRatio: 5,
       }),
     }),
@@ -56,7 +66,7 @@ const MapNgii = ({ children, id = 'ngii' }) => {
         projection: epsg5179,
         tileGrid: new WMTSTileGrid({
           origin: getTopLeft(epsg5179.getExtent()),
-          resolutions: resolutions5179,
+          resolutions: resolutions,
           matrixIds: [
             'L05',
             'L06',
@@ -90,19 +100,35 @@ const MapNgii = ({ children, id = 'ngii' }) => {
     const map = new OlMap({
       layers: mapLayer,
       view: new View({
-        projection: 'EPSG:4326',
-        center: [127.5, 36.5],
-        extent: epsg4326.getExtent(),
-        maxZoom: resolutions4326.length - 1,
+        projection: customProj,
+        center: transform([127.5, 36.5], 'EPSG:4326', customProj),
+        extent: customProj.getExtent(),
+        maxZoom: resolutions.length - 1,
         minZoom: 0,
         zoom: 2,
         constrainResolution: true,
-        resolutions: resolutions4326,
+        resolutions: resolutions,
       }),
       logo: false,
       target: id,
     });
+    // const map = new OlMap({
+    //   layers: mapLayer,
+    //   view: new View({
+    //     projection: 'EPSG:4326',
+    //     center: [127.5, 36.5],
+    //     extent: epsg4326.getExtent(),
+    //     maxZoom: resolutions4326.length - 1,
+    //     minZoom: 0,
+    //     zoom: 2,
+    //     constrainResolution: true,
+    //     resolutions: resolutions4326,
+    //   }),
+    //   logo: false,
+    //   target: id,
+    // });
 
+    console.log(map.getView().getProjection().getExtent());
     map.on('singleclick', evt => {
       console.log(evt.coordinate);
     });
