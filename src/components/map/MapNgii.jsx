@@ -128,7 +128,6 @@ const MapNgii = ({ children, id = 'ngii' }) => {
     //   target: id,
     // });
 
-    console.log(map.getView().getProjection().getExtent());
     map.on('singleclick', evt => {
       console.log(evt.coordinate);
     });

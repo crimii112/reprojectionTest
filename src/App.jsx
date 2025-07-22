@@ -3,6 +3,7 @@ import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 
 import { MapNgii } from '@/components/map';
 import { ProjectionTest } from '@/components/wind/projection-test';
+import { EarthTest } from '@/components/wind/earth-test';
 
 function App() {
   return (
@@ -11,6 +12,16 @@ function App() {
         <Routes>
           <Route
             path="/"
+            element={
+              <div className="w-screen h-screen">
+                <MapNgii id="earthTest">
+                  <EarthTest mapId="earthTest" />
+                </MapNgii>
+              </div>
+            }
+          />
+          <Route
+            path="/projection-test"
             element={
               <div className="w-screen h-screen">
                 <MapNgii id="projectionTest">
