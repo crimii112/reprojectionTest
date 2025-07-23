@@ -382,20 +382,20 @@ export const µ = (function () {
     return new Promise((resolve, reject) => {
       // d3.json이 최신 D3 버전이라면 Promise를 반환하므로 d3.json(url).then(resolve).catch(reject) 사용 가능
       // 하지만 여기서는 콜백 방식이므로 그대로 유지하면서 Promise로 래핑합니다.
-      d3.json(url, (error, json) => {
-        // d3.json은 D3 v3/v4에서 콜백 스타일
-        if (error) {
-          // 'log'가 정의되어 있지 않다면 console.error로 대체
-          if (typeof log !== 'undefined' && log.error) {
-            log.error(error);
-          } else {
-            console.error('Error loading JSON:', error);
-          }
-          reject(error);
-        } else {
-          resolve(json);
-        }
-      });
+      // d3.json(url, (error, json) => {
+      //   // d3.json은 D3 v3/v4에서 콜백 스타일
+      //   if (error) {
+      //     // 'log'가 정의되어 있지 않다면 console.error로 대체
+      //     if (typeof log !== 'undefined' && log.error) {
+      //       log.error(error);
+      //     } else {
+      //       console.error('Error loading JSON:', error);
+      //     }
+      //     reject(error);
+      //   } else {
+      //     resolve(json);
+      //   }
+      // });
     });
   }
 
@@ -715,6 +715,7 @@ export const µ = (function () {
   }
 
   return {
+    H: H,
     isTruthy: isTruthy,
     isValue: isValue,
     coalesce: coalesce,

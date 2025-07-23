@@ -1,6 +1,7 @@
 import { µ } from './micro.js';
 import _ from 'lodash';
 import * as d3 from 'd3';
+import { transform } from 'ol/proj.js';
 
 /**
  * products - defines the behavior of weather data grids, including grid construction, interpolation, and color scales.
@@ -30,14 +31,14 @@ var products = (function () {
         navigate: function (step) {
           return gfsStep(this.date, step);
         },
-        load: function (cancel) {
-          var me = this;
-          return when.map(this.paths, µ.loadJson).then(function (files) {
-            return cancel.requested
-              ? null
-              : _.extend(me, buildGrid(me.builder.apply(me, files)));
-          });
-        },
+        // load: function (cancel) {
+        //   var me = this;
+        //   return when.map(this.paths, µ.loadJson).then(function (files) {
+        //     return cancel.requested
+        //       ? null
+        //       : _.extend(me, buildGrid(me.builder.apply(me, files)));
+        //   });
+        // },
       },
       overrides
     );
@@ -145,8 +146,9 @@ var products = (function () {
             },
           }),
           // paths: [gfs1p0degPath(attr, 'wind', attr.surface, attr.level)],
-          paths: [`${import.meta.env.VITE_WIND_API_URL}/api/proj/test`],
-          date: gfsDate(attr),
+          paths: ['../datas/wind.json'],
+          // date: gfsDate(attr),
+          date: new Date('2025-06-30T12:00:00Z'),
           builder: function (file) {
             var uData = file[0].data,
               vData = file[1].data;
@@ -835,10 +837,14 @@ var products = (function () {
     // var builder = createBuilder(data);
 
     var header = builder.header;
-    var λ0 = header.lo1,
-      φ0 = header.la1; // the grid's origin (e.g., 0.0E, 90.0N)
-    var Δλ = header.dx,
-      Δφ = header.dy; // distance between grid points (e.g., 2.5 deg lon, 2.5 deg lat)
+
+    // earth는 4326 기준이라 변환 필요
+    const [λ0, φ0] = transform([header.lo1, header.la1], 'CUSTOM', 'EPSG:4326');
+    // var λ0 = header.lo1,
+    //   φ0 = header.la1; // the grid's origin (e.g., 0.0E, 90.0N)
+    const [Δλ, Δφ] = [0.08775838216145833, 0.10307161735765862];
+    // var Δλ = header.dx,
+    //   Δφ = header.dy; // distance between grid points (e.g., 2.5 deg lon, 2.5 deg lat)
     var ni = header.nx,
       nj = header.ny; // number of grid points W-E and N-S (e.g., 144 x 73)
     var date = new Date(header.refTime);
@@ -947,6 +953,8 @@ var products = (function () {
   return {
     overlayTypes: new Set(_.keys(FACTORIES)),
     productsFor: productsFor,
+    FACTORIES: FACTORIES,
+    buildGrid: buildGrid,
   };
 })();
 

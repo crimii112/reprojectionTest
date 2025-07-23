@@ -49,6 +49,7 @@ const EarthTest = ({ SetMap, mapId }) => {
   const getWindData = useCallback(async () => {
     setLoading(true);
     setError(null);
+
     try {
       const res = await axios.get(
         `${import.meta.env.VITE_WIND_API_URL}/api/proj/test`
@@ -68,19 +69,22 @@ const EarthTest = ({ SetMap, mapId }) => {
       // 이 부분은 API에서 받아오는 windData의 실제 구조에 따라 달라질 수 있습니다.
       // 예를 들어 GFS 데이터라면 products.FACTORIES.wind.builder를 사용합니다.
       // `data.windData`가 이미 { header, data } 형태라고 가정.
-      const builderResult = products.FACTORIES.wind.builder(data.windData);
-      console.log('Builder result:', builderResult);
-      //   const builtGrid = products.buildGrid(builderResult); // products.js의 buildGrid 함수 사용
+      const attr = { param: 'wind', surface: 'surface', level: 'surface' };
+      const windProduct = products.FACTORIES.wind.create(attr);
+      const windBuilder = windProduct.builder(data.windData);
 
-      //   // particle config는 products.FACTORIES.wind에서 가져옵니다.
-      //   const particleConfig = products.FACTORIES.wind.particles;
-      //   const colorScale = products.FACTORIES.wind.scale.gradient;
+      const builtGrid = products.buildGrid(windBuilder); // products.js의 buildGrid 함수 사용
+      console.log(builtGrid);
 
-      //   setCurrentGrid({
-      //     ...builtGrid,
-      //     particles: particleConfig, // 입자 애니메이션 설정을 그리드에 추가
-      //     scale: { gradient: colorScale }, // 색상 스케일도 추가
-      //   });
+      // particle config는 products.FACTORIES.wind에서 가져옵니다.
+      const particleConfig = windProduct.particles; //{ velocityScale: 1 / 60000, maxIntensity: 17 }
+      const colorScale = windProduct.scale.gradient;
+
+      setCurrentGrid({
+        ...builtGrid,
+        particles: particleConfig, // 입자 애니메이션 설정을 그리드에 추가
+        scale: { gradient: colorScale }, // 색상 스케일도 추가
+      });
     } catch (err) {
       console.error('Error fetching or processing wind data:', err);
       setError('데이터를 가져오는 데 실패했습니다. 나중에 다시 시도해주세요.');
@@ -106,7 +110,7 @@ const EarthTest = ({ SetMap, mapId }) => {
 
   useEffect(() => {
     if (map.ol_uid) {
-      //   getWindData();
+      getWindData();
     }
   }, [map.ol_uid, getWindData]);
 
