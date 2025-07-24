@@ -55,6 +55,7 @@ const EarthTest = ({ SetMap, mapId }) => {
         `${import.meta.env.VITE_WIND_API_URL}/api/proj/test`
       );
       const data = res.data;
+      setWindData(data.windData);
 
       console.log('Fetched wind data:', data);
 
@@ -151,10 +152,21 @@ const EarthTest = ({ SetMap, mapId }) => {
 
       {/* WindCanvas 컴포넌트를 OpenLayers 맵 위에 오버레이 */}
       {currentGrid && map.ol_uid && (
+        // <WindCanvas
+        //   currentGrid={currentGrid}
+        //   olMap={map} // OpenLayers map 인스턴스 전달
+        //   viewSize={viewSize} // 뷰포트 크기 전달
+        // />
         <WindCanvas
-          currentGrid={currentGrid}
-          olMap={map} // OpenLayers map 인스턴스 전달
-          viewSize={viewSize} // 뷰포트 크기 전달
+          windData={windData}
+          width={viewSize.width}
+          height={viewSize.height}
+          toLonLat={(x, y) => {
+            const coordCustom = map.getCoordinateFromPixel([x, y]);
+            if (!coordCustom) return null;
+            return coordCustom;
+            // return transform(coordCustom, 'CUSTOM', 'EPSG:4326');
+          }}
         />
       )}
     </Container>
