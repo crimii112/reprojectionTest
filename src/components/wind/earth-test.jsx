@@ -1,6 +1,7 @@
-import { useContext, useEffect, useState, useCallback } from 'react';
+import { useContext, useEffect, useState, useCallback, useRef } from 'react';
 import styled from 'styled-components';
 import axios from 'axios';
+import _ from 'lodash';
 import { transform } from 'ol/proj';
 import { products } from '@/earth/1.0.0/products.js'; // products.js에서 buildGrid와 FACTORIES를 import
 import { µ } from '@/earth/1.0.0/micro.js';
@@ -11,13 +12,12 @@ import { WindCanvas } from '@/components/earth/wind';
 const EarthTest = ({ SetMap, mapId }) => {
   const map = useContext(MapContext);
   const [currentGrid, setCurrentGrid] = useState(null); // products.js에서 생성될 그리드 데이터
+  const [bounds, setBounds] = useState(null);
+  const boundsRef = useRef({});
+  const fieldRef = useRef(null);
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-
-  // OpenLayers 맵 뷰포트 크기를 상태로 관리 (캔버스 크기 조정을 위함)
-  const [viewSize, setViewSize] = useState({ width: 0, height: 0 });
-
-  const [windData, setWindData] = useState(null);
 
   useEffect(() => {
     if (!map.ol_uid) return;
@@ -28,10 +28,13 @@ const EarthTest = ({ SetMap, mapId }) => {
 
     // 맵 뷰포트 크기 감지 및 업데이트
     const updateViewSize = () => {
-      const viewport = map.getViewport();
-      setViewSize({
-        width: viewport.offsetWidth,
-        height: viewport.offsetHeight,
+      setBounds({
+        x: 0,
+        y: 0,
+        xMax: map.getViewport().offsetWidth - 1,
+        yMax: map.getViewport().offsetHeight - 1,
+        width: map.getViewport().offsetWidth,
+        height: map.getViewport().offsetHeight,
       });
     };
 
@@ -55,7 +58,6 @@ const EarthTest = ({ SetMap, mapId }) => {
         `${import.meta.env.VITE_WIND_API_URL}/api/proj/test`
       );
       const data = res.data;
-      setWindData(data.windData);
 
       console.log('Fetched wind data:', data);
 
@@ -75,7 +77,6 @@ const EarthTest = ({ SetMap, mapId }) => {
       const windBuilder = windProduct.builder(data.windData);
 
       const builtGrid = products.buildGrid(windBuilder); // products.js의 buildGrid 함수 사용
-      console.log(builtGrid);
 
       // particle config는 products.FACTORIES.wind에서 가져옵니다.
       const particleConfig = windProduct.particles; //{ velocityScale: 1 / 60000, maxIntensity: 17 }
@@ -93,27 +94,137 @@ const EarthTest = ({ SetMap, mapId }) => {
     } finally {
       setLoading(false);
     }
-
-    // await axios
-    //   .get(`${import.meta.env.VITE_WIND_API_URL}/api/proj/test`)
-    //   .then(res => res.data)
-    //   .then(data => {
-    //     console.log(data);
-
-    //     if (!data.windData) return;
-    //     setWindData(data.windData);
-    //   })
-    //   .catch(error => {
-    //     console.error('Error fetching data:', error);
-    //     alert('데이터를 가져오는 데 실패했습니다. 나중에 다시 시도해주세요.');
-    //   });
   }, []);
+
+  const distortion = (λ, φ, x, y) => {
+    const H = 0.000036;
+
+    const hλ = λ < 0 ? H : -H;
+    const hφ = φ < 0 ? H : -H;
+    const coordCustom1 = transform([λ + hλ, φ], 'EPSG:4326', 'CUSTOM');
+    const coordCustom2 = transform([λ, φ + hφ], 'EPSG:4326', 'CUSTOM');
+    const pλ = map.getPixelFromCoordinate(coordCustom1);
+    const pφ = map.getPixelFromCoordinate(coordCustom2);
+
+    // Meridian scale factor (see Snyder, equation 4-3), where R = 1. This handles issue where length of 1° λ
+    // changes depending on φ. Without this, there is a pinching effect at the poles.
+    const τ = 2 * Math.PI;
+    const k = Math.cos((φ / 360) * τ);
+
+    return [
+      (pλ[0] - x) / hλ / k,
+      (pλ[1] - y) / hλ / k,
+      (pφ[0] - x) / hφ,
+      (pφ[1] - y) / hφ,
+    ];
+  };
+
+  const distort = (λ, φ, x, y, scale, wind) => {
+    const u = wind[0] * scale;
+    const v = wind[1] * scale;
+    const d = distortion(λ, φ, x, y);
+
+    wind[0] = d[0] * u + d[2] * v;
+    wind[1] = d[1] * u + d[3] * v;
+
+    return wind;
+  };
+
+  const columnsRef = useRef([]);
+  const interpolateColumn = x => {
+    const velocityScale = bounds.height * currentGrid.particles.velocityScale;
+    let column = [];
+    for (let y = bounds.y; y <= bounds.yMax; y += 2) {
+      const point = [x, y];
+      const coordCustom = map.getCoordinateFromPixel(point);
+      const coord4326 = transform(coordCustom, 'CUSTOM', 'EPSG:4326');
+      let wind = null;
+      if (coord4326) {
+        const λ = coord4326[0];
+        const φ = coord4326[1];
+        if (isFinite(λ)) {
+          wind = currentGrid.interpolate(λ, φ);
+          if (wind) {
+            wind = distort(λ, φ, x, y, velocityScale, wind);
+          }
+        }
+      }
+
+      column[y + 1] = column[y] = wind || [NaN, NaN, null];
+    }
+
+    columnsRef.current[x + 1] = columnsRef.current[x] = column;
+  };
+
+  const NULL_WIND_VECTOR = [NaN, NaN, null];
+  const createField = (columns, bounds) => {
+    const field = (x, y) => {
+      let column = columns[Math.round(x)];
+      return (column && column[Math.round(y)]) || [NaN, NaN, null];
+    };
+
+    field.isDefined = (x, y) => {
+      return field(x, y)[2] !== null;
+    };
+
+    field.isInsideBoundary = (x, y) => {
+      return field(x, y) !== NULL_WIND_VECTOR;
+    };
+
+    field.release = () => {
+      columns = [];
+    };
+
+    field.randomize = o => {
+      let x, y;
+      let safetyNet = 0;
+      do {
+        x = Math.round(_.random(bounds.x, bounds.xMax));
+        y = Math.round(_.random(bounds.y, bounds.yMax));
+      } while (!field.isDefined(x, y) && safetyNet++ < 30);
+
+      o.x = x;
+      o.y = y;
+      return o;
+    };
+
+    return field;
+  };
+
+  const batchInterpolate = () => {
+    if (!currentGrid) return;
+
+    try {
+      const start = Date.now();
+      let x = bounds.x;
+      while (x < bounds.xMax) {
+        interpolateColumn(x);
+        x += 2;
+        // if (Date.now() - start > 100) {
+        //   console.log('.......');
+        //   setTimeout(batchInterpolate, 25);
+        //   return;
+        // }
+      }
+
+      const field = createField(columnsRef.current, bounds);
+      fieldRef.current = field;
+    } catch (e) {
+      console.log('Error batching interpolate: ' + e);
+    }
+  };
 
   useEffect(() => {
     if (map.ol_uid) {
       getWindData();
     }
   }, [map.ol_uid, getWindData]);
+
+  useEffect(() => {
+    if (map.ol_uid) {
+      batchInterpolate();
+    }
+  }, [map.ol_uid, batchInterpolate]);
 
   return (
     <Container id={mapId}>
@@ -151,22 +262,11 @@ const EarthTest = ({ SetMap, mapId }) => {
       )}
 
       {/* WindCanvas 컴포넌트를 OpenLayers 맵 위에 오버레이 */}
-      {currentGrid && map.ol_uid && (
-        // <WindCanvas
-        //   currentGrid={currentGrid}
-        //   olMap={map} // OpenLayers map 인스턴스 전달
-        //   viewSize={viewSize} // 뷰포트 크기 전달
-        // />
+      {currentGrid && bounds && fieldRef.current && map.ol_uid && (
         <WindCanvas
-          windData={windData}
-          width={viewSize.width}
-          height={viewSize.height}
-          toLonLat={(x, y) => {
-            const coordCustom = map.getCoordinateFromPixel([x, y]);
-            if (!coordCustom) return null;
-            return coordCustom;
-            // return transform(coordCustom, 'CUSTOM', 'EPSG:4326');
-          }}
+          currentGrid={currentGrid}
+          currentField={fieldRef.current}
+          bounds={bounds}
         />
       )}
     </Container>
