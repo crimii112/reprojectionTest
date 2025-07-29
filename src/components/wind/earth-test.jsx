@@ -24,8 +24,6 @@ const EarthTest = ({ SetMap, mapId }) => {
 
     if (SetMap) SetMap(map);
 
-    // getWindData();
-
     // 맵 뷰포트 크기 감지 및 업데이트
     const updateViewSize = () => {
       setBounds({
@@ -132,9 +130,10 @@ const EarthTest = ({ SetMap, mapId }) => {
 
   const columnsRef = useRef([]);
   const interpolateColumn = x => {
-    const velocityScale = bounds.height * currentGrid.particles.velocityScale;
+    const velocityScale =
+      bounds.height * currentGrid.particles.velocityScale * 0.5;
     let column = [];
-    for (let y = bounds.y; y <= bounds.yMax; y += 2) {
+    for (let y = bounds.y; y <= bounds.yMax; y += 1) {
       const point = [x, y];
       const coordCustom = map.getCoordinateFromPixel(point);
       const coord4326 = transform(coordCustom, 'CUSTOM', 'EPSG:4326');
@@ -150,10 +149,12 @@ const EarthTest = ({ SetMap, mapId }) => {
         }
       }
 
-      column[y + 1] = column[y] = wind || [NaN, NaN, null];
+      // column[y + 1] = column[y] = wind || [NaN, NaN, null];
+      column[y] = wind || [NaN, NaN, null];
     }
 
-    columnsRef.current[x + 1] = columnsRef.current[x] = column;
+    columnsRef.current[x] = column;
+    // columnsRef.current[x + 1] = columnsRef.current[x] = column;
   };
 
   const NULL_WIND_VECTOR = [NaN, NaN, null];
@@ -179,8 +180,8 @@ const EarthTest = ({ SetMap, mapId }) => {
       let x, y;
       let safetyNet = 0;
       do {
-        x = Math.round(_.random(bounds.x, bounds.xMax));
-        y = Math.round(_.random(bounds.y, bounds.yMax));
+        x = Math.round(_.random(bounds.x, bounds.xMax, true));
+        y = Math.round(_.random(bounds.y, bounds.yMax, true));
       } while (!field.isDefined(x, y) && safetyNet++ < 30);
 
       o.x = x;
@@ -192,15 +193,15 @@ const EarthTest = ({ SetMap, mapId }) => {
   };
 
   const batchInterpolate = () => {
-    if (!currentGrid) return;
+    if (!currentGrid || !bounds) return;
 
     try {
       const start = Date.now();
       let x = bounds.x;
       while (x < bounds.xMax) {
         interpolateColumn(x);
-        x += 2;
-        // if (Date.now() - start > 100) {
+        x += 1;
+        // if (Date.now() - start > 500) {
         //   console.log('.......');
         //   setTimeout(batchInterpolate, 25);
         //   return;
@@ -215,15 +216,13 @@ const EarthTest = ({ SetMap, mapId }) => {
   };
 
   useEffect(() => {
-    if (map.ol_uid) {
-      getWindData();
-    }
+    if (!map.ol_uid) return;
+    getWindData();
   }, [map.ol_uid, getWindData]);
 
   useEffect(() => {
-    if (map.ol_uid) {
-      batchInterpolate();
-    }
+    if (!map.ol_uid) return;
+    batchInterpolate();
   }, [map.ol_uid, batchInterpolate]);
 
   return (
@@ -264,6 +263,7 @@ const EarthTest = ({ SetMap, mapId }) => {
       {/* WindCanvas 컴포넌트를 OpenLayers 맵 위에 오버레이 */}
       {currentGrid && bounds && fieldRef.current && map.ol_uid && (
         <WindCanvas
+          key={bounds.width + ':' + bounds.height}
           currentGrid={currentGrid}
           currentField={fieldRef.current}
           bounds={bounds}

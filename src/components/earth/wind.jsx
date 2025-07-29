@@ -1,27 +1,76 @@
-import React, { useRef, useEffect, useContext } from 'react';
+import React, { useRef, useEffect, useContext, useCallback } from 'react';
 import _ from 'lodash';
 
 import { µ } from '@/earth/1.0.0/micro'; // micro.js에서 µ를 import
 import MapContext from '@/components/map/MapContext';
 
 // 원래 earth.js에서 가져온 상수들 (적절히 조절 가능)
-const MAX_PARTICLE_AGE = 100; // 입자 수명 프레임 수
-const PARTICLE_LINE_WIDTH = 1.0; // 입자 선 굵기
-const PARTICLE_MULTIPLIER = 7; // 화면 면적당 입자 수 조절 (예: 7/3은 너무 많을 수 있음, 1/10000은 픽셀당 입자 수)
-const FRAME_RATE_MS = 40; // milliseconds per frame (약 25fps)
-const INTENSITY_SCALE_STEP = 10; // step size of particle intensity color scale
+const MAX_PARTICLE_AGE = 100 / 3; // 입자 수명 프레임 수
+const PARTICLE_LINE_WIDTH = 1.0 / 3; // 입자 선 굵기
+const PARTICLE_MULTIPLIER = 3; // 화면 면적당 입자 수 조절
+const INTENSITY_SCALE_STEP = 1; // step size of particle intensity color scale
 
 function WindCanvas({ currentGrid, currentField, bounds }) {
   const map = useContext(MapContext);
   const canvasRef = useRef(null);
 
-  useEffect(() => {
-    if (!currentField || !currentGrid || !bounds) return;
+  const animFrameRef = useRef(null);
+  const animRunningRef = useRef(false);
 
-    animate(currentField, currentGrid, bounds);
-  }, [map]);
+  const startAnimate = useCallback(
+    _.debounce(() => {
+      if (!currentGrid || !currentField || !bounds) return;
+      if (animRunningRef.current) return;
+      animRunningRef.current = true;
+      animate(currentField, currentGrid, bounds);
+    }, 1000),
+    []
+  );
+
+  const stopAnimate = useCallback(() => {
+    animRunningRef.current = false;
+    if (animFrameRef.current) {
+      cancelAnimationFrame(animFrameRef.current);
+      animFrameRef.current = null;
+    }
+    clearCanvas();
+  }, []);
+
+  useEffect(() => {
+    startAnimate();
+    return stopAnimate;
+  }, [startAnimate, stopAnimate, map]);
+
+  useEffect(() => {
+    if (!map) return;
+
+    // window.addEventListener('mousedown', stopAnimate);
+    // window.addEventListener('mouseup', startAnimate);
+    map.on('movestart', stopAnimate);
+    map.on('moveend', startAnimate);
+
+    return () => {
+      // window.removeEventListener('mousedown', stopAnimate);
+      // window.removeEventListener('mouseup', startAnimate);
+
+      if (!map) return;
+      map.un('movestart', stopAnimate);
+      map.un('moveend', startAnimate);
+    };
+  }, [startAnimate, stopAnimate]);
+
+  const clearCanvas = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  }, []);
 
   const animate = (field, grids, bounds) => {
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
     const colorStyles = µ.windIntensityColorScale(
       INTENSITY_SCALE_STEP,
       grids.particles.maxIntensity
@@ -71,8 +120,6 @@ function WindCanvas({ currentGrid, currentField, bounds }) {
       });
     };
 
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
     ctx.lineWidth = PARTICLE_LINE_WIDTH;
     ctx.fillStyle = fadeFillStyle;
 
@@ -97,15 +144,18 @@ function WindCanvas({ currentGrid, currentField, bounds }) {
       });
     };
 
-    (function frame() {
+    function frame() {
+      if (!animRunningRef.current) return;
       try {
         evolve();
         draw();
-        setTimeout(frame, FRAME_RATE_MS);
+        animFrameRef.current = requestAnimationFrame(frame);
       } catch (e) {
         console.log('Error drawing animation: ' + e);
       }
-    })();
+    }
+
+    animFrameRef.current = requestAnimationFrame(frame);
   };
 
   return (
@@ -117,8 +167,8 @@ function WindCanvas({ currentGrid, currentField, bounds }) {
         position: 'absolute',
         top: 0,
         left: 0,
-        width: '100%',
-        height: '100%',
+        width: bounds.width,
+        height: bounds.height,
         pointerEvents: 'none', // 맵 상호작용을 방해하지 않도록
         zIndex: 1000, // 맵 위에 오버레이
       }}

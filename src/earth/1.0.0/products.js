@@ -196,7 +196,7 @@ var products = (function () {
               return µ.extendedSinebowColor(Math.min(v, 100) / 100, a);
             },
           },
-          particles: { velocityScale: 1 / 50000, maxIntensity: 17 },
+          particles: { velocityScale: 1 / 100000, maxIntensity: 17 },
         });
       },
     },
