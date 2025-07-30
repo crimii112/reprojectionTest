@@ -4,7 +4,6 @@ import axios from 'axios';
 import _ from 'lodash';
 import { transform } from 'ol/proj';
 import { products } from '@/earth/1.0.0/products.js'; // products.js에서 buildGrid와 FACTORIES를 import
-import { µ } from '@/earth/1.0.0/micro.js';
 
 import MapContext from '@/components/map/MapContext';
 import { WindCanvas } from '@/components/earth/wind';
@@ -13,7 +12,6 @@ const EarthTest = ({ SetMap, mapId }) => {
   const map = useContext(MapContext);
   const [currentGrid, setCurrentGrid] = useState(null); // products.js에서 생성될 그리드 데이터
   const [bounds, setBounds] = useState(null);
-  const boundsRef = useRef({});
   const fieldRef = useRef(null);
 
   const [loading, setLoading] = useState(true);
@@ -23,6 +21,8 @@ const EarthTest = ({ SetMap, mapId }) => {
     if (!map.ol_uid) return;
 
     if (SetMap) SetMap(map);
+
+    getWindData();
 
     // 맵 뷰포트 크기 감지 및 업데이트
     const updateViewSize = () => {
@@ -36,12 +36,9 @@ const EarthTest = ({ SetMap, mapId }) => {
       });
     };
 
-    // 초기 크기 설정
     updateViewSize();
-    // 맵 크기 변경 시 이벤트 리스너 등록
-    map.on('rendercomplete', updateViewSize); // 렌더링 완료 시 뷰포트 크기 업데이트
+    map.on('rendercomplete', updateViewSize);
 
-    // 클린업 함수
     return () => {
       map.un('rendercomplete', updateViewSize);
     };
@@ -52,8 +49,9 @@ const EarthTest = ({ SetMap, mapId }) => {
     setError(null);
 
     try {
-      const res = await axios.get(
-        `${import.meta.env.VITE_WIND_API_URL}/api/proj/test`
+      const res = await axios.post(
+        `${import.meta.env.VITE_WIND_API_URL}/api/proj/test`,
+        { arrowGap: 1 }
       );
       const data = res.data;
 
@@ -67,9 +65,6 @@ const EarthTest = ({ SetMap, mapId }) => {
       }
 
       // products.js의 builder 함수를 사용하여 그리드 생성
-      // 이 부분은 API에서 받아오는 windData의 실제 구조에 따라 달라질 수 있습니다.
-      // 예를 들어 GFS 데이터라면 products.FACTORIES.wind.builder를 사용합니다.
-      // `data.windData`가 이미 { header, data } 형태라고 가정.
       const attr = { param: 'wind', surface: 'surface', level: 'surface' };
       const windProduct = products.FACTORIES.wind.create(attr);
       const windBuilder = windProduct.builder(data.windData);
@@ -77,7 +72,7 @@ const EarthTest = ({ SetMap, mapId }) => {
       const builtGrid = products.buildGrid(windBuilder); // products.js의 buildGrid 함수 사용
 
       // particle config는 products.FACTORIES.wind에서 가져옵니다.
-      const particleConfig = windProduct.particles; //{ velocityScale: 1 / 60000, maxIntensity: 17 }
+      const particleConfig = windProduct.particles; //{ velocityScale: 1 / 100000, maxIntensity: 17 }
       const colorScale = windProduct.scale.gradient;
 
       setCurrentGrid({
@@ -88,7 +83,7 @@ const EarthTest = ({ SetMap, mapId }) => {
     } catch (err) {
       console.error('Error fetching or processing wind data:', err);
       setError('데이터를 가져오는 데 실패했습니다. 나중에 다시 시도해주세요.');
-      alert('데이터를 가져오는 데 실패했습니다. 나중에 다시 시도해주세요.');
+      // alert('데이터를 가져오는 데 실패했습니다. 나중에 다시 시도해주세요.');
     } finally {
       setLoading(false);
     }
@@ -130,8 +125,7 @@ const EarthTest = ({ SetMap, mapId }) => {
 
   const columnsRef = useRef([]);
   const interpolateColumn = x => {
-    const velocityScale =
-      bounds.height * currentGrid.particles.velocityScale * 0.5;
+    const velocityScale = bounds.height * currentGrid.particles.velocityScale;
     let column = [];
     for (let y = bounds.y; y <= bounds.yMax; y += 1) {
       const point = [x, y];
@@ -153,8 +147,8 @@ const EarthTest = ({ SetMap, mapId }) => {
       column[y] = wind || [NaN, NaN, null];
     }
 
-    columnsRef.current[x] = column;
     // columnsRef.current[x + 1] = columnsRef.current[x] = column;
+    columnsRef.current[x] = column;
   };
 
   const NULL_WIND_VECTOR = [NaN, NaN, null];
@@ -196,16 +190,10 @@ const EarthTest = ({ SetMap, mapId }) => {
     if (!currentGrid || !bounds) return;
 
     try {
-      const start = Date.now();
       let x = bounds.x;
       while (x < bounds.xMax) {
         interpolateColumn(x);
         x += 1;
-        // if (Date.now() - start > 500) {
-        //   console.log('.......');
-        //   setTimeout(batchInterpolate, 25);
-        //   return;
-        // }
       }
 
       const field = createField(columnsRef.current, bounds);
@@ -214,11 +202,6 @@ const EarthTest = ({ SetMap, mapId }) => {
       console.log('Error batching interpolate: ' + e);
     }
   };
-
-  useEffect(() => {
-    if (!map.ol_uid) return;
-    getWindData();
-  }, [map.ol_uid, getWindData]);
 
   useEffect(() => {
     if (!map.ol_uid) return;

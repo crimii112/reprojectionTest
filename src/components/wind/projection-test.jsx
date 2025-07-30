@@ -6,7 +6,7 @@ import VectorLayer from 'ol/layer/Vector';
 import VectorSource from 'ol/source/Vector';
 import { Point, Polygon } from 'ol/geom';
 import { asArray } from 'ol/color';
-import { Circle, Fill, Stroke, Style } from 'ol/style';
+import { Circle, Fill, RegularShape, Stroke, Style } from 'ol/style';
 import { Feature } from 'ol';
 import HeatmapLayer from 'ol/layer/Heatmap';
 import { get as getProjection, transform } from 'ol/proj';
@@ -25,6 +25,34 @@ const ProjectionTest = ({ SetMap, mapId }) => {
     zIndex: 1000,
   });
 
+  const sourceArrows = new VectorSource({ wrapX: false });
+  const layerArrows = new VectorLayer({
+    source: sourceArrows,
+    id: 'arrows',
+    zIndex: 10000,
+  });
+
+  const shaft = new RegularShape({
+    points: 2,
+    radius: 5,
+    stroke: new Stroke({
+      width: 2,
+      color: 'black',
+    }),
+    rotateWithView: true,
+  });
+
+  const head = new RegularShape({
+    points: 3,
+    radius: 5,
+    fill: new Fill({
+      color: 'black',
+    }),
+    rotateWithView: true,
+  });
+
+  const styles = [new Style({ image: shaft }), new Style({ image: head })];
+
   const customProj = getProjection('CUSTOM');
 
   useEffect(() => {
@@ -33,6 +61,7 @@ const ProjectionTest = ({ SetMap, mapId }) => {
     if (SetMap) SetMap(map);
 
     map.addLayer(layerCoords);
+    map.addLayer(layerArrows);
 
     getTempData();
 
@@ -108,7 +137,9 @@ const ProjectionTest = ({ SetMap, mapId }) => {
     document.body.style.cursor = 'progress';
 
     await axios
-      .get(`${import.meta.env.VITE_WIND_API_URL}/api/proj/test`)
+      .post(`${import.meta.env.VITE_WIND_API_URL}/api/proj/test`, {
+        arrowGap: 3,
+      })
       .then(res => res.data)
       .then(data => {
         console.log(data);
@@ -162,6 +193,32 @@ const ProjectionTest = ({ SetMap, mapId }) => {
 
         polygonFeatures.forEach(f => setPolygonFeatureStyle(f));
         sourceCoords.addFeatures(polygonFeatures);
+
+        const arrowFeatures = data.arrowData.map(item => {
+          const feature = new Feature({
+            geometry: new Point([item.lon, item.lat]),
+            wd: item.wd,
+            ws: item.ws,
+          });
+          return feature;
+        });
+        // arrowFeatures.forEach(f => setArrowFeatureStyle(f));
+        sourceArrows.addFeatures(arrowFeatures);
+
+        layerArrows.setStyle(f => {
+          const wd = f.get('wd');
+          const ws = f.get('ws');
+          const angle = ((wd - 180) * Math.PI) / 180;
+          const scale = ws / 10;
+          shaft.setScale([1, scale]);
+          shaft.setRotation(angle);
+          head.setDisplacement([
+            0,
+            head.getRadius() / 2 + shaft.getRadius() * scale,
+          ]);
+          head.setRotation(angle);
+          return styles;
+        });
 
         // heatmapLayer 생성(tmp)
         // tmpStyles.forEach(style => {

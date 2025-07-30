@@ -842,7 +842,12 @@ var products = (function () {
     const [λ0, φ0] = transform([header.lo1, header.la1], 'CUSTOM', 'EPSG:4326');
     // var λ0 = header.lo1,
     //   φ0 = header.la1; // the grid's origin (e.g., 0.0E, 90.0N)
-    const [Δλ, Δφ] = [0.08775838216145833, 0.10307161735765862];
+
+    // 위경도로 하기 때문에 dx, dy는 python에서 따로 계산해서 박아줌
+    // 현재는 소장님 좌표계
+    // const [Δλ, Δφ] = [0.10223732143640518, 0.08261565864086151]; //소장님 github 기준 dx, dy
+    // const [Δλ, Δφ] = [0.539792999507874, 0.1965467860932984]; //기존 코드 dx, dy(27km)
+    const [Δλ, Δφ] = [0.08775838216145833, 0.10307161735765862]; //기존 코드 dx, dy(9km)
     // var Δλ = header.dx,
     //   Δφ = header.dy; // distance between grid points (e.g., 2.5 deg lon, 2.5 deg lat)
     var ni = header.nx,
@@ -870,7 +875,7 @@ var products = (function () {
 
     // 보간
     function interpolate(λ, φ) {
-      // var i = µ.floorMod(λ - λ0, /60) / Δλ; // calculate longitude index in wrapped range [0, 360)
+      // var i = µ.floorMod(λ - λ0, 360) / Δλ; // calculate longitude index in wrapped range [0, 360)
       var i = (λ - λ0) / Δλ; // calculate longitude index in wrapped range [0, 360)
       // var j = (φ0 - φ) / Δφ; // calculate latitude index in direction +90 to -90
       var j;

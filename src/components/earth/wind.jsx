@@ -5,9 +5,12 @@ import { µ } from '@/earth/1.0.0/micro'; // micro.js에서 µ를 import
 import MapContext from '@/components/map/MapContext';
 
 // 원래 earth.js에서 가져온 상수들 (적절히 조절 가능)
-const MAX_PARTICLE_AGE = 100 / 3; // 입자 수명 프레임 수
-const PARTICLE_LINE_WIDTH = 1.0 / 3; // 입자 선 굵기
-const PARTICLE_MULTIPLIER = 3; // 화면 면적당 입자 수 조절
+const MAX_PARTICLE_AGE = 100 / 2; // 입자 수명 프레임 수
+const PARTICLE_LINE_WIDTH = 1.0 / 2; // 입자 선 굵기
+const PARTICLE_MULTIPLIER = 5; // 화면 면적당 입자 수 조절
+// const MAX_PARTICLE_AGE = 100 / 3; // 입자 수명 프레임 수
+// const PARTICLE_LINE_WIDTH = 1.0 / 3; // 입자 선 굵기
+// const PARTICLE_MULTIPLIER = 3; // 화면 면적당 입자 수 조절
 const INTENSITY_SCALE_STEP = 1; // step size of particle intensity color scale
 
 function WindCanvas({ currentGrid, currentField, bounds }) {
