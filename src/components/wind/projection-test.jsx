@@ -81,7 +81,7 @@ const ProjectionTest = ({ SetMap, mapId }) => {
     const g = Math.round(sColorArr[1] + ratio * (eColorArr[1] - sColorArr[1]));
     const b = Math.round(sColorArr[2] + ratio * (eColorArr[2] - sColorArr[2]));
 
-    return `rgba(${r}, ${g}, ${b}, 1)`;
+    return `rgba(${r}, ${g}, ${b}, 0.5)`;
   };
 
   const setPointFeatureStyle = f => {
@@ -124,10 +124,10 @@ const ProjectionTest = ({ SetMap, mapId }) => {
               value
             ),
           }),
-          stroke: new Stroke({
-            color: style.circleStrokeColor,
-            width: style.circleStrokeWidth,
-          }),
+          // stroke: new Stroke({
+          //   color: style.circleStrokeColor,
+          //   width: style.circleStrokeWidth,
+          // }),
         })
       );
     }
