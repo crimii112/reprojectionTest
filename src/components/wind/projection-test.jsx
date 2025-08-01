@@ -112,7 +112,7 @@ const ProjectionTest = ({ SetMap, mapId }) => {
 
   const setPolygonFeatureStyle = f => {
     const value = f.get('value');
-    const style = tmpStyles.find(s => value >= s.min && value < s.max);
+    const style = o3Styles.find(s => value >= s.min && value < s.max);
     if (style) {
       f.setStyle(
         new Style({
@@ -293,6 +293,58 @@ const ProjectionTest = ({ SetMap, mapId }) => {
 
 export { ProjectionTest };
 
+const o3Styles = [
+  {
+    min: 0,
+    max: 0.0301,
+    circleRadius: 5,
+    circleFillColor: 'rgba(0, 100, 255, 1)',
+    circleStrokeColor: 'rgba(180, 210, 255, 1)',
+    circleStrokeWidth: 1,
+    gradient: [
+      'rgba(180, 210, 255, 1)', // 연파랑
+      'rgba(0, 100, 255, 1)', // 진파랑
+    ],
+  },
+  {
+    min: 0.0301,
+    max: 0.0901,
+    circleRadius: 5,
+    circleFillColor: 'rgba(0, 128, 0, 1)',
+    circleStrokeColor: 'gray',
+    circleStrokeWidth: 1,
+    gradient: [
+      // 'rgba(180, 255, 180, 1)', // 연초록
+      'rgba(255, 255, 255, 1)',
+      'rgba(0, 128, 0, 1)', // 진초록
+    ],
+  },
+  {
+    min: 0.0901,
+    max: 0.1501,
+    circleRadius: 4,
+    circleFillColor: 'rgba(255, 200, 0, 1)',
+    circleStrokeColor: 'gray',
+    circleStrokeWidth: 1,
+    gradient: [
+      // 'rgba(255, 245, 180, 1)', // 연노랑
+      'rgba(255, 255, 255, 1)',
+      'rgba(255, 200, 0, 1)', // 진노랑
+    ],
+  },
+  {
+    min: 0.1501,
+    max: 0.3001,
+    circleRadius: 5,
+    circleFillColor: 'rgba(200, 0, 0, 1)',
+    circleStrokeColor: 'rgba(255, 180, 180, 1)',
+    circleStrokeWidth: 1,
+    gradient: [
+      'rgba(255, 180, 180, 1)', // 연빨강
+      'rgba(200, 0, 0, 1)', // 진빨강
+    ],
+  },
+];
 const tmpStyles = [
   {
     min: 0,
