@@ -4,17 +4,19 @@ import axios from 'axios';
 
 import VectorLayer from 'ol/layer/Vector';
 import VectorSource from 'ol/source/Vector';
-import { Point } from 'ol/geom';
+import { Point, Polygon } from 'ol/geom';
 import { asArray } from 'ol/color';
-import { Circle, Fill, Stroke, Style } from 'ol/style';
+import { Fill, RegularShape, Stroke, Style } from 'ol/style';
 import { Feature } from 'ol';
-import HeatmapLayer from 'ol/layer/Heatmap';
+import { get as getProjection } from 'ol/proj';
 
 import MapContext from '@/components/map/MapContext';
 
-const ProjectionTest = ({ SetMap, mapId }) => {
+/**
+ * - 소장님 모델 좌표계 적용 => 격자 폴리곤, 바람 화살표 레이어
+ */
+const ProjectionTestLcc = ({ SetMap, mapId }) => {
   const map = useContext(MapContext);
-  const FIXED_GEOGRAPHIC_RADIUS_METERS = 10000;
 
   const sourceCoords = new VectorSource({ wrapX: false });
   const layerCoords = new VectorLayer({
@@ -23,16 +25,45 @@ const ProjectionTest = ({ SetMap, mapId }) => {
     zIndex: 1000,
   });
 
+  const sourceArrows = new VectorSource({ wrapX: false });
+  const layerArrows = new VectorLayer({
+    source: sourceArrows,
+    id: 'arrows',
+    zIndex: 10000,
+  });
+
+  const shaft = new RegularShape({
+    points: 2,
+    radius: 5,
+    stroke: new Stroke({
+      width: 2,
+      color: 'black',
+    }),
+    rotateWithView: true,
+  });
+
+  const head = new RegularShape({
+    points: 3,
+    radius: 5,
+    fill: new Fill({
+      color: 'black',
+    }),
+    rotateWithView: true,
+  });
+
+  const styles = [new Style({ image: shaft }), new Style({ image: head })];
+
+  const customProj = getProjection('CUSTOM');
+
   useEffect(() => {
     if (!map.ol_uid) return;
 
     if (SetMap) SetMap(map);
 
     map.addLayer(layerCoords);
+    map.addLayer(layerArrows);
 
-    getTempData();
-
-    map.getView().on('change:resolution', updateHeatmapRadius);
+    getLccData();
   }, [map, map.ol_uid]);
 
   const getInterpolateColor = (min, max, color, value) => {
@@ -51,66 +82,89 @@ const ProjectionTest = ({ SetMap, mapId }) => {
     return `rgba(${r}, ${g}, ${b}, 0.3)`;
   };
 
-  const setPointFeatureStyle = f => {
+  const setPolygonFeatureStyle = f => {
     const value = f.get('value');
-    const style = tmpStyles.find(s => value >= s.min && value < s.max);
+    const style = o3Styles.find(s => value >= s.min && value < s.max);
     if (style) {
       f.setStyle(
         new Style({
-          image: new Circle({
-            radius: style.circleRadius,
-            fill: new Fill({
-              color: getInterpolateColor(
-                style.min,
-                style.max,
-                style.gradient,
-                value
-              ),
-            }),
-            stroke: new Stroke({
-              color: style.circleStrokeColor,
-              width: style.circleStrokeWidth,
-            }),
+          fill: new Fill({
+            color: getInterpolateColor(
+              style.min,
+              style.max,
+              style.gradient,
+              value
+            ),
           }),
         })
       );
     }
   };
 
-  const getTempData = async () => {
+  const getLccData = async () => {
     document.body.style.cursor = 'progress';
 
     await axios
-      .get(`${import.meta.env.VITE_WIND_API_URL}/api/proj/test`)
+      .post(`${import.meta.env.VITE_WIND_API_URL}/api/lcc`, {
+        arrowGap: 3,
+      })
       .then(res => res.data)
       .then(data => {
         console.log(data);
 
-        if (!data.heatmapData) return;
+        if (!data.polygonData) return;
 
-        // 좌표 데이터 Point Feature 생성
-        const features = data.heatmapData.map(item => {
+        // 좌표 데이터 Polygon Feature 생성
+        const polygonFeatures = data.polygonData.map(item => {
           const feature = new Feature({
-            geometry: new Point([item.lon, item.lat]),
-            // geometry: new Point(
-            //   transform([item.lon, item.lat], 'EPSG:4326', customProj)
-            // ),
+            geometry: new Polygon([
+              [
+                // [item.lon - 4500, item.lat + 4500],
+                // [item.lon - 4500, item.lat - 4500],
+                // [item.lon + 4500, item.lat - 4500],
+                // [item.lon + 4500, item.lat + 4500],
+                // [item.lon - 4500, item.lat + 4500],
+                [item.lon - 13500, item.lat + 13500],
+                [item.lon - 13500, item.lat - 13500],
+                [item.lon + 13500, item.lat - 13500],
+                [item.lon + 13500, item.lat + 13500],
+                [item.lon - 13500, item.lat + 13500],
+              ],
+            ]),
             value: item.value,
           });
           return feature;
         });
 
-        features.forEach(f => setPointFeatureStyle(f));
-        sourceCoords.addFeatures(features);
+        polygonFeatures.forEach(f => setPolygonFeatureStyle(f));
+        sourceCoords.addFeatures(polygonFeatures);
 
-        // heatmapLayer 생성(tmp)
-        tmpStyles.forEach(style => {
-          const rangeFeatures = filterByRange(features, style.min, style.max);
+        if (!data.arrowData) return;
 
-          if (rangeFeatures.length > 0) {
-            const layer = createHeatmapLayer(rangeFeatures, style.gradient);
-            map.addLayer(layer);
-          }
+        // 바람 화살표
+        const arrowFeatures = data.arrowData.map(item => {
+          const feature = new Feature({
+            geometry: new Point([item.lon, item.lat]),
+            wd: item.wd,
+            ws: item.ws,
+          });
+          return feature;
+        });
+        sourceArrows.addFeatures(arrowFeatures);
+
+        layerArrows.setStyle(f => {
+          const wd = f.get('wd');
+          const ws = f.get('ws');
+          const angle = ((wd - 180) * Math.PI) / 180;
+          const scale = ws / 10;
+          shaft.setScale([1, scale]);
+          shaft.setRotation(angle);
+          head.setDisplacement([
+            0,
+            head.getRadius() / 2 + shaft.getRadius() * scale,
+          ]);
+          head.setRotation(angle);
+          return styles;
         });
       })
       .catch(error => {
@@ -121,61 +175,63 @@ const ProjectionTest = ({ SetMap, mapId }) => {
     document.body.style.cursor = 'default';
   };
 
-  // heatmapIntervals 범위에 맞는 features 찾기
-  const filterByRange = (features, min, max) => {
-    return features
-      .filter(f => {
-        const v = f.get('value');
-        return v >= min && v < max;
-      })
-      .map(f => {
-        const v = f.get('value');
-        const weight = (v - min) / (max - min);
-        f.set('weight', weight); // Heatmap weight을 고정
-        return f;
-      });
-  };
-
-  // 히트맵 반경 업데이트 함수(해상도 변화 시 동적 재조정)
-  const updateHeatmapRadius = () => {
-    if (!map) return;
-
-    const view = map.getView();
-    const resolution = view.getResolution();
-    if (!resolution) return;
-
-    const radiusInPixels = FIXED_GEOGRAPHIC_RADIUS_METERS / resolution; // view => 'CUSTOM'
-    // const radiusInPixels = FIXED_GEOGRAPHIC_RADIUS_DEGREE / resolution; // view => 'EPSG:4326'
-
-    map
-      .getLayers()
-      .getArray()
-      .forEach(layer => {
-        if (layer instanceof HeatmapLayer) {
-          layer.setRadius(radiusInPixels);
-          layer.setBlur(radiusInPixels);
-        }
-      });
-  };
-
-  // heatmapLayer 생성 함수
-  const createHeatmapLayer = (features, gradient) => {
-    return new HeatmapLayer({
-      source: new VectorSource({
-        features: features,
-      }),
-      gradient: gradient,
-      opacity: 0.6,
-      radius: 25, // 히트맵 반경
-      blur: 25, // 히트맵 블러 효과
-    });
-  };
-
   return <Container id={mapId} />;
 };
 
-export { ProjectionTest };
+export { ProjectionTestLcc };
 
+const o3Styles = [
+  {
+    min: 0,
+    max: 0.0301,
+    circleRadius: 5,
+    circleFillColor: 'rgba(0, 100, 255, 1)',
+    circleStrokeColor: 'rgba(180, 210, 255, 1)',
+    circleStrokeWidth: 1,
+    gradient: [
+      'rgba(180, 210, 255, 1)', // 연파랑
+      'rgba(0, 100, 255, 1)', // 진파랑
+    ],
+  },
+  {
+    min: 0.0301,
+    max: 0.0901,
+    circleRadius: 5,
+    circleFillColor: 'rgba(0, 128, 0, 1)',
+    circleStrokeColor: 'gray',
+    circleStrokeWidth: 1,
+    gradient: [
+      'rgba(180, 255, 180, 1)', // 연초록
+      // 'rgba(255, 255, 255, 1)',
+      'rgba(0, 128, 0, 1)', // 진초록
+    ],
+  },
+  {
+    min: 0.0901,
+    max: 0.1501,
+    circleRadius: 4,
+    circleFillColor: 'rgba(255, 200, 0, 1)',
+    circleStrokeColor: 'gray',
+    circleStrokeWidth: 1,
+    gradient: [
+      'rgba(255, 245, 180, 1)', // 연노랑
+      // 'rgba(255, 255, 255, 1)',
+      'rgba(255, 200, 0, 1)', // 진노랑
+    ],
+  },
+  {
+    min: 0.1501,
+    max: 0.3001,
+    circleRadius: 5,
+    circleFillColor: 'rgba(200, 0, 0, 1)',
+    circleStrokeColor: 'rgba(255, 180, 180, 1)',
+    circleStrokeWidth: 1,
+    gradient: [
+      'rgba(255, 180, 180, 1)', // 연빨강
+      'rgba(200, 0, 0, 1)', // 진빨강
+    ],
+  },
+];
 const tmpStyles = [
   {
     min: 0,
@@ -197,8 +253,8 @@ const tmpStyles = [
     circleStrokeColor: 'gray',
     circleStrokeWidth: 1,
     gradient: [
-      // 'rgba(180, 255, 180, 1)', // 연초록
-      'rgba(255, 255, 255, 1)',
+      'rgba(180, 255, 180, 1)', // 연초록
+      // 'rgba(255, 255, 255, 1)',
       'rgba(0, 128, 0, 1)', // 진초록
     ],
   },
@@ -210,8 +266,8 @@ const tmpStyles = [
     circleStrokeColor: 'gray',
     circleStrokeWidth: 1,
     gradient: [
-      // 'rgba(255, 245, 180, 1)', // 연노랑
-      'rgba(255, 255, 255, 1)',
+      'rgba(255, 245, 180, 1)', // 연노랑
+      // 'rgba(255, 255, 255, 1)',
       'rgba(255, 200, 0, 1)', // 진노랑
     ],
   },

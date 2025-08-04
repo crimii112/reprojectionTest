@@ -35,10 +35,12 @@ const MapNgii = ({ children, id = 'ngii' }) => {
   const epsg4326 = getProjection('EPSG:4326');
   // epsg4326.setExtent([120.0, 30.0, 136.0, 42.5]);
   epsg4326.setExtent([90.0, 0.0, 150.0, 55.0]);
+  // epsg4326.setExtent([60.0, -20.0, 180.0, 80.0]);
 
   const customProj = getProjection('CUSTOM');
   customProj.setExtent(
     transformExtent([90.0, 0.0, 150.0, 55.0], 'EPSG:4326', customProj)
+    // transformExtent([60.0, -20.0, 180.0, 80.0], 'EPSG:4326', customProj)
   ); // [-4963916.717923589, -4079529.7265884588, 3372424.289850015, 2329106.5257526683]
 
   // EPSG:5179 타일 해상도 목록 (meters per pixel)
@@ -105,9 +107,9 @@ const MapNgii = ({ children, id = 'ngii' }) => {
         extent: customProj.getExtent(),
         maxZoom: resolutions.length - 1,
         minZoom: 0,
-        zoom: 2,
+        zoom: 1,
         constrainResolution: true,
-        resolutions: resolutions,
+        // resolutions: resolutions,
       }),
       logo: false,
       target: id,

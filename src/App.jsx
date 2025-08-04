@@ -4,6 +4,7 @@ import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { MapNgii } from '@/components/map';
 import { ProjectionTest } from '@/components/wind/projection-test';
 import { EarthTest } from '@/components/wind/earth-test';
+import { ProjectionTestLcc } from '@/components/wind/projection-test-lcc';
 
 function App() {
   return (
@@ -16,6 +17,16 @@ function App() {
               <div className="w-screen h-screen">
                 <MapNgii id="earthTest">
                   <EarthTest mapId="earthTest" />
+                </MapNgii>
+              </div>
+            }
+          />
+          <Route
+            path="/lcc"
+            element={
+              <div className="w-screen h-screen">
+                <MapNgii id="projectionTestLcc">
+                  <ProjectionTestLcc mapId="projectionTestLcc" />
                 </MapNgii>
               </div>
             }

@@ -49,9 +49,8 @@ const EarthTest = ({ SetMap, mapId }) => {
     setError(null);
 
     try {
-      const res = await axios.post(
-        `${import.meta.env.VITE_WIND_API_URL}/api/proj/test`,
-        { arrowGap: 1 }
+      const res = await axios.get(
+        `${import.meta.env.VITE_WIND_API_URL}/api/proj/test`
       );
       const data = res.data;
 
