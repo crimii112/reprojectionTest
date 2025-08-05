@@ -666,7 +666,9 @@
       });
     }
 
-    var g = d3.select('#animation').node().getContext('2d');
+    // var g = d3.select('#animation').node().getContext('2d');
+    const canvas = document.getElementById('wind-animation');
+    const g = canvas.getContext('2d');
     g.lineWidth = PARTICLE_LINE_WIDTH;
     g.fillStyle = fadeFillStyle;
 
@@ -941,7 +943,8 @@
   function stopCurrentAnimation(alsoClearCanvas) {
     animatorAgent.cancel();
     if (alsoClearCanvas) {
-      µ.clearCanvas(d3.select('#animation').node());
+      // µ.clearCanvas(d3.select('#animation').node());
+      µ.clearCanvas(document.getElementById('wind-animation'));
     }
   }
 

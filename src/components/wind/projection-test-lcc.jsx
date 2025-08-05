@@ -79,7 +79,7 @@ const ProjectionTestLcc = ({ SetMap, mapId }) => {
     const g = Math.round(sColorArr[1] + ratio * (eColorArr[1] - sColorArr[1]));
     const b = Math.round(sColorArr[2] + ratio * (eColorArr[2] - sColorArr[2]));
 
-    return `rgba(${r}, ${g}, ${b}, 0.3)`;
+    return `rgba(${r}, ${g}, ${b}, 0.4)`;
   };
 
   const setPolygonFeatureStyle = f => {

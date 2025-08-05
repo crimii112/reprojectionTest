@@ -5,6 +5,8 @@ import { MapNgii } from '@/components/map';
 import { ProjectionTest } from '@/components/wind/projection-test';
 import { EarthTest } from '@/components/wind/earth-test';
 import { ProjectionTestLcc } from '@/components/wind/projection-test-lcc';
+import { EarthMap } from '@/components/wind/earth-map';
+import { OlEarth } from '@/components/wind/ol-earth';
 
 function App() {
   return (
@@ -38,6 +40,24 @@ function App() {
                 <MapNgii id="projectionTest">
                   <ProjectionTest mapId="projectionTest" />
                 </MapNgii>
+              </div>
+            }
+          />
+          <Route
+            path="/ol-earth"
+            element={
+              <div className="w-screen h-screen">
+                <MapNgii id="olEarth">
+                  <OlEarth mapId="olEarth" />
+                </MapNgii>
+              </div>
+            }
+          />
+          <Route
+            path="/earth"
+            element={
+              <div className="w-screen h-screen">
+                <EarthMap />
               </div>
             }
           />
