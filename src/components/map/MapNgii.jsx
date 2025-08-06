@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Feature, Map as OlMap, View } from 'ol';
 import { Tile as TileLayer } from 'ol/layer';
-import { OSM, WMTS } from 'ol/source';
+import { OSM, WMTS, XYZ } from 'ol/source';
 import { get as getProjection, transform, transformExtent } from 'ol/proj';
 import WMTSTileGrid from 'ol/tilegrid/WMTS';
 import { getTopLeft } from 'ol/extent';
@@ -61,41 +61,48 @@ const MapNgii = ({ children, id = 'ngii' }) => {
       }),
     }),
     new TileLayer({
-      source: new WMTS({
-        url: '/ais/proxy/ngii/hybrid',
-        matrixSet: 'EPSG:5179',
-        format: 'image/png',
-        projection: epsg5179,
-        tileGrid: new WMTSTileGrid({
-          origin: getTopLeft(epsg5179.getExtent()),
-          resolutions: resolutions,
-          matrixIds: [
-            'L05',
-            'L06',
-            'L07',
-            'L08',
-            'L09',
-            'L10',
-            'L11',
-            'L12',
-            'L13',
-            'L14',
-            'L15',
-            'L16',
-            'L17',
-            'L18',
-          ],
-        }),
-        style: 'korean',
-        layer: 'korean_map',
-        wrapX: true,
-        // attributions: [ `<img style="width:96px; height:16px;"src="${urlvalue}/img/process/ms/map/common/img_btoLogo3.png" alt="로고">` ],   // 로고는 나중에 추가해야할 수도 있어서 완전 삭제는 안함
-        crossOrigin: 'anonymous',
-        tilePixelRatio: 5,
+      source: new XYZ({
+        url: 'https://api.vworld.kr/req/wmts/1.0.0/752F9EDC-AFA6-31AF-856D-B7A3921E84AE/Base/{z}/{y}/{x}.png',
       }),
-      id: 'base',
-      minZoom: 1,
+      id: 'vworld',
+      minZoom: 4,
     }),
+    // new TileLayer({
+    //   source: new WMTS({
+    //     url: '/ais/proxy/ngii/hybrid',
+    //     matrixSet: 'EPSG:5179',
+    //     format: 'image/png',
+    //     projection: epsg5179,
+    //     tileGrid: new WMTSTileGrid({
+    //       origin: getTopLeft(epsg5179.getExtent()),
+    //       resolutions: resolutions,
+    //       matrixIds: [
+    //         'L05',
+    //         'L06',
+    //         'L07',
+    //         'L08',
+    //         'L09',
+    //         'L10',
+    //         'L11',
+    //         'L12',
+    //         'L13',
+    //         'L14',
+    //         'L15',
+    //         'L16',
+    //         'L17',
+    //         'L18',
+    //       ],
+    //     }),
+    //     style: 'korean',
+    //     layer: 'korean_map',
+    //     wrapX: true,
+    //     // attributions: [ `<img style="width:96px; height:16px;"src="${urlvalue}/img/process/ms/map/common/img_btoLogo3.png" alt="로고">` ],   // 로고는 나중에 추가해야할 수도 있어서 완전 삭제는 안함
+    //     crossOrigin: 'anonymous',
+    //     tilePixelRatio: 5,
+    //   }),
+    //   id: 'base',
+    //   minZoom: 1,
+    // }),
   ]);
 
   useEffect(() => {
