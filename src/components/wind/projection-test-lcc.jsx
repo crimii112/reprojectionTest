@@ -1,4 +1,4 @@
-import { useContext, useEffect } from 'react';
+import { useContext, useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 import axios from 'axios';
 
@@ -8,9 +8,10 @@ import { Point, Polygon } from 'ol/geom';
 import { asArray } from 'ol/color';
 import { Fill, RegularShape, Stroke, Style } from 'ol/style';
 import { Feature } from 'ol';
-import { get as getProjection } from 'ol/proj';
 
 import MapContext from '@/components/map/MapContext';
+import { Option, Select } from '@/components/ui/select-box';
+import { Button, GridWrapper } from '@/components/ui/common';
 
 /**
  * - 소장님 모델 좌표계 적용 => 격자 폴리곤, 바람 화살표 레이어
@@ -18,14 +19,19 @@ import MapContext from '@/components/map/MapContext';
 const ProjectionTestLcc = ({ SetMap, mapId }) => {
   const map = useContext(MapContext);
 
-  const sourceCoords = new VectorSource({ wrapX: false });
+  const [bgPoll, setBgPoll] = useState('O3');
+  const [arrowGap, setArrowGap] = useState(3);
+
+  const sourceCoordsRef = useRef(new VectorSource({ wrapX: false }));
+  const sourceCoords = sourceCoordsRef.current;
   const layerCoords = new VectorLayer({
     source: sourceCoords,
     id: 'coords',
     zIndex: 1000,
   });
 
-  const sourceArrows = new VectorSource({ wrapX: false });
+  const sourceArrowsRef = useRef(new VectorSource({ wrapX: false }));
+  const sourceArrows = sourceArrowsRef.current;
   const layerArrows = new VectorLayer({
     source: sourceArrows,
     id: 'arrows',
@@ -53,8 +59,6 @@ const ProjectionTestLcc = ({ SetMap, mapId }) => {
 
   const styles = [new Style({ image: shaft }), new Style({ image: head })];
 
-  const customProj = getProjection('CUSTOM');
-
   useEffect(() => {
     if (!map.ol_uid) return;
 
@@ -64,6 +68,13 @@ const ProjectionTestLcc = ({ SetMap, mapId }) => {
     map.addLayer(layerArrows);
 
     getLccData();
+
+    return () => {
+      sourceArrows.clear();
+      layerArrows.getSource().clear();
+      sourceCoords.clear();
+      layerCoords.getSource().clear();
+    };
   }, [map, map.ol_uid]);
 
   const getInterpolateColor = (min, max, color, value) => {
@@ -84,7 +95,10 @@ const ProjectionTestLcc = ({ SetMap, mapId }) => {
 
   const setPolygonFeatureStyle = f => {
     const value = f.get('value');
-    const style = o3Styles.find(s => value >= s.min && value < s.max);
+
+    const style = polygonStyles[bgPoll].find(
+      s => value >= s.min && value < s.max
+    );
     if (style) {
       f.setStyle(
         new Style({
@@ -102,11 +116,17 @@ const ProjectionTestLcc = ({ SetMap, mapId }) => {
   };
 
   const getLccData = async () => {
+    sourceArrows.clear();
+    layerArrows.getSource().clear();
+    sourceCoords.clear();
+    layerCoords.getSource().clear();
+
     document.body.style.cursor = 'progress';
 
     await axios
       .post(`${import.meta.env.VITE_WIND_API_URL}/api/lcc`, {
-        arrowGap: 3,
+        bgPoll: bgPoll,
+        arrowGap: arrowGap,
       })
       .then(res => res.data)
       .then(data => {
@@ -172,14 +192,245 @@ const ProjectionTestLcc = ({ SetMap, mapId }) => {
         alert('데이터를 가져오는 데 실패했습니다. 나중에 다시 시도해주세요.');
       });
 
+    const arrowImg = document.getElementById('arrowImg');
+    arrowImg.drawImage();
+
     document.body.style.cursor = 'default';
   };
 
-  return <Container id={mapId} />;
+  return (
+    <Container id={mapId}>
+      <SettingContainer>
+        <GridWrapper className="grid-cols-[1fr_2fr] gap-1">
+          <span className="flex items-center justify-center text-sm">
+            배경 물질
+          </span>
+          <Select
+            className="text-sm"
+            defaultValue={bgPoll}
+            onChange={e => setBgPoll(e.target.value)}
+          >
+            <Option value="O3">O3</Option>
+            <Option value="PM10">PM10</Option>
+            <Option value="PM2.5">PM2.5</Option>
+          </Select>
+        </GridWrapper>
+        <GridWrapper className="grid-cols-[1fr_2fr] gap-1">
+          <span className="flex items-center justify-center text-sm">
+            바람 간격
+          </span>
+          <Select
+            className="text-sm"
+            defaultValue={arrowGap}
+            onChange={e => setArrowGap(Number(e.target.value))}
+          >
+            <Option value="1">1</Option>
+            <Option value="2">2</Option>
+            <Option value="3">3</Option>
+            <Option value="4">4</Option>
+          </Select>
+        </GridWrapper>
+        <Button className="text-sm" onClick={getLccData}>
+          적용
+        </Button>
+      </SettingContainer>
+      <HeatmapLegend
+        intervals={polygonStyles[bgPoll]}
+        title={bgPoll}
+        visible={true}
+      />
+    </Container>
+  );
 };
 
 export { ProjectionTestLcc };
 
+// 히트맵 범례
+const HeatmapLegend = ({ intervals, title, visible }) => {
+  return (
+    <LegendContainer className={visible ? '' : 'hidden'}>
+      <LegendTitle>{title.toUpperCase()}</LegendTitle>
+      {intervals
+        .slice()
+        .reverse()
+        .map((interval, idx) => (
+          <LegendItem key={idx}>
+            <ColorBox
+              style={{
+                background: `linear-gradient(to right, ${interval.gradient.join(
+                  ', '
+                )})`,
+              }}
+            />
+            <RangeLabel>
+              {interval.min} ~ {interval.max}
+            </RangeLabel>
+          </LegendItem>
+        ))}
+      <br />
+      <LegendTitle>WS(m/s)</LegendTitle>
+      <LegendItem>
+        <div id="arrowImg"></div>
+        <RangeLabel>1.0</RangeLabel>
+      </LegendItem>
+    </LegendContainer>
+  );
+};
+
+const polygonStyles = {
+  O3: [
+    {
+      min: 0,
+      max: 0.0301,
+      circleRadius: 5,
+      circleFillColor: 'rgba(0, 100, 255, 1)',
+      circleStrokeColor: 'rgba(180, 210, 255, 1)',
+      circleStrokeWidth: 1,
+      gradient: [
+        'rgba(180, 210, 255, 1)', // 연파랑
+        'rgba(0, 100, 255, 1)', // 진파랑
+      ],
+    },
+    {
+      min: 0.0301,
+      max: 0.0901,
+      circleRadius: 5,
+      circleFillColor: 'rgba(0, 128, 0, 1)',
+      circleStrokeColor: 'gray',
+      circleStrokeWidth: 1,
+      gradient: [
+        'rgba(180, 255, 180, 1)', // 연초록
+        // 'rgba(255, 255, 255, 1)',
+        'rgba(0, 128, 0, 1)', // 진초록
+      ],
+    },
+    {
+      min: 0.0901,
+      max: 0.1501,
+      circleRadius: 4,
+      circleFillColor: 'rgba(255, 200, 0, 1)',
+      circleStrokeColor: 'gray',
+      circleStrokeWidth: 1,
+      gradient: [
+        'rgba(255, 245, 180, 1)', // 연노랑
+        // 'rgba(255, 255, 255, 1)',
+        'rgba(255, 200, 0, 1)', // 진노랑
+      ],
+    },
+    {
+      min: 0.1501,
+      max: 0.3001,
+      circleRadius: 5,
+      circleFillColor: 'rgba(200, 0, 0, 1)',
+      circleStrokeColor: 'rgba(255, 180, 180, 1)',
+      circleStrokeWidth: 1,
+      gradient: [
+        'rgba(255, 180, 180, 1)', // 연빨강
+        'rgba(200, 0, 0, 1)', // 진빨강
+      ],
+    },
+  ],
+  PM10: [
+    {
+      min: 0,
+      max: 31,
+      circleRadius: 5,
+      circleFillColor: 'rgba(0, 100, 255, 1)',
+      circleStrokeColor: 'rgba(180, 210, 255, 1)',
+      circleStrokeWidth: 1,
+      gradient: [
+        'rgba(180, 210, 255, 1)', // 연파랑
+        'rgba(0, 100, 255, 1)', // 진파랑
+      ],
+    },
+    {
+      min: 31,
+      max: 81,
+      circleRadius: 5,
+      circleFillColor: 'rgba(180, 255, 180, 1)',
+      circleStrokeColor: 'rgba(0, 128, 0, 1)',
+      circleStrokeWidth: 1,
+      gradient: [
+        'rgba(180, 255, 180, 1)', // 연초록
+        'rgba(0, 128, 0, 1)', // 진초록
+      ],
+    },
+    {
+      min: 81,
+      max: 151,
+      circleRadius: 5,
+      circleFillColor: 'rgba(255, 245, 180, 1)',
+      circleStrokeColor: 'rgba(255, 200, 0, 1)',
+      circleStrokeWidth: 1,
+      gradient: [
+        'rgba(255, 245, 180, 1)', // 연노랑
+        'rgba(255, 200, 0, 1)', // 진노랑
+      ],
+    },
+    {
+      min: 151,
+      max: 320,
+      circleRadius: 5,
+      circleFillColor: 'rgba(255, 180, 180, 1)',
+      circleStrokeColor: 'rgba(200, 0, 0, 1)',
+      circleStrokeWidth: 1,
+      gradient: [
+        'rgba(255, 180, 180, 1)', // 연빨강
+        'rgba(200, 0, 0, 1)', // 진빨강
+      ],
+    },
+  ],
+  'PM2.5': [
+    {
+      min: 0,
+      max: 16,
+      circleRadius: 5,
+      circleFillColor: 'rgba(0, 100, 255, 1)',
+      circleStrokeColor: 'rgba(180, 210, 255, 1)',
+      circleStrokeWidth: 1,
+      gradient: [
+        'rgba(180, 210, 255, 1)', // 연파랑
+        'rgba(0, 100, 255, 1)', // 진파랑
+      ],
+    },
+    {
+      min: 16,
+      max: 36,
+      circleRadius: 5,
+      circleFillColor: 'rgba(180, 255, 180, 1)',
+      circleStrokeColor: 'rgba(0, 128, 0, 1)',
+      circleStrokeWidth: 1,
+      gradient: [
+        'rgba(180, 255, 180, 1)', // 연초록
+        'rgba(0, 128, 0, 1)', // 진초록
+      ],
+    },
+    {
+      min: 36,
+      max: 76,
+      circleRadius: 5,
+      circleFillColor: 'rgba(255, 245, 180, 1)',
+      circleStrokeColor: 'rgba(255, 200, 0, 1)',
+      circleStrokeWidth: 1,
+      gradient: [
+        'rgba(255, 245, 180, 1)', // 연노랑
+        'rgba(255, 200, 0, 1)', // 진노랑
+      ],
+    },
+    {
+      min: 76,
+      max: 200,
+      circleRadius: 5,
+      circleFillColor: 'rgba(255, 180, 180, 1)',
+      circleStrokeColor: 'rgba(200, 0, 0, 1)',
+      circleStrokeWidth: 1,
+      gradient: [
+        'rgba(255, 180, 180, 1)', // 연빨강
+        'rgba(200, 0, 0, 1)', // 진빨강
+      ],
+    },
+  ],
+};
 const o3Styles = [
   {
     min: 0,
@@ -277,6 +528,108 @@ const tmpStyles = [
     circleRadius: 5,
     circleFillColor: 'rgba(200, 0, 0, 1)',
     circleStrokeColor: 'rgba(255, 180, 180, 1)',
+    circleStrokeWidth: 1,
+    gradient: [
+      'rgba(255, 180, 180, 1)', // 연빨강
+      'rgba(200, 0, 0, 1)', // 진빨강
+    ],
+  },
+];
+
+const pm10Styles = [
+  {
+    min: 0,
+    max: 31,
+    circleRadius: 5,
+    circleFillColor: 'rgba(0, 100, 255, 1)',
+    circleStrokeColor: 'rgba(180, 210, 255, 1)',
+    circleStrokeWidth: 1,
+    gradient: [
+      'rgba(180, 210, 255, 1)', // 연파랑
+      'rgba(0, 100, 255, 1)', // 진파랑
+    ],
+  },
+  {
+    min: 31,
+    max: 81,
+    circleRadius: 5,
+    circleFillColor: 'rgba(180, 255, 180, 1)',
+    circleStrokeColor: 'rgba(0, 128, 0, 1)',
+    circleStrokeWidth: 1,
+    gradient: [
+      'rgba(180, 255, 180, 1)', // 연초록
+      'rgba(0, 128, 0, 1)', // 진초록
+    ],
+  },
+  {
+    min: 81,
+    max: 151,
+    circleRadius: 5,
+    circleFillColor: 'rgba(255, 245, 180, 1)',
+    circleStrokeColor: 'rgba(255, 200, 0, 1)',
+    circleStrokeWidth: 1,
+    gradient: [
+      'rgba(255, 245, 180, 1)', // 연노랑
+      'rgba(255, 200, 0, 1)', // 진노랑
+    ],
+  },
+  {
+    min: 151,
+    max: 320,
+    circleRadius: 5,
+    circleFillColor: 'rgba(255, 180, 180, 1)',
+    circleStrokeColor: 'rgba(200, 0, 0, 1)',
+    circleStrokeWidth: 1,
+    gradient: [
+      'rgba(255, 180, 180, 1)', // 연빨강
+      'rgba(200, 0, 0, 1)', // 진빨강
+    ],
+  },
+];
+
+const pm25Styles = [
+  {
+    min: 0,
+    max: 16,
+    circleRadius: 5,
+    circleFillColor: 'rgba(0, 100, 255, 1)',
+    circleStrokeColor: 'rgba(180, 210, 255, 1)',
+    circleStrokeWidth: 1,
+    gradient: [
+      'rgba(180, 210, 255, 1)', // 연파랑
+      'rgba(0, 100, 255, 1)', // 진파랑
+    ],
+  },
+  {
+    min: 16,
+    max: 36,
+    circleRadius: 5,
+    circleFillColor: 'rgba(180, 255, 180, 1)',
+    circleStrokeColor: 'rgba(0, 128, 0, 1)',
+    circleStrokeWidth: 1,
+    gradient: [
+      'rgba(180, 255, 180, 1)', // 연초록
+      'rgba(0, 128, 0, 1)', // 진초록
+    ],
+  },
+  {
+    min: 36,
+    max: 76,
+    circleRadius: 5,
+    circleFillColor: 'rgba(255, 245, 180, 1)',
+    circleStrokeColor: 'rgba(255, 200, 0, 1)',
+    circleStrokeWidth: 1,
+    gradient: [
+      'rgba(255, 245, 180, 1)', // 연노랑
+      'rgba(255, 200, 0, 1)', // 진노랑
+    ],
+  },
+  {
+    min: 76,
+    max: 200,
+    circleRadius: 5,
+    circleFillColor: 'rgba(255, 180, 180, 1)',
+    circleStrokeColor: 'rgba(200, 0, 0, 1)',
     circleStrokeWidth: 1,
     gradient: [
       'rgba(255, 180, 180, 1)', // 연빨강
@@ -501,4 +854,19 @@ const ColorBox = styled.div`
 
 const RangeLabel = styled.span`
   font-size: 14px;
+`;
+
+const SettingContainer = styled.div`
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  width: 200px;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px;
+  background: #ffffff;
+  border-radius: 5px;
+  border: 1px solid #cccccc;
 `;
