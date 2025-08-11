@@ -12,6 +12,7 @@ import { Feature } from 'ol';
 import MapContext from '@/components/map/MapContext';
 import { Option, Select } from '@/components/ui/select-box';
 import { Button, GridWrapper } from '@/components/ui/common';
+import { toContext } from 'ol/render';
 
 /**
  * - 소장님 모델 좌표계 적용 => 격자 폴리곤, 바람 화살표 레이어
@@ -21,6 +22,8 @@ const ProjectionTestLcc = ({ SetMap, mapId }) => {
 
   const [bgPoll, setBgPoll] = useState('O3');
   const [arrowGap, setArrowGap] = useState(3);
+
+  const arrowImgRef = useRef(null);
 
   const sourceCoordsRef = useRef(new VectorSource({ wrapX: false }));
   const sourceCoords = sourceCoordsRef.current;
@@ -67,7 +70,7 @@ const ProjectionTestLcc = ({ SetMap, mapId }) => {
     map.addLayer(layerCoords);
     map.addLayer(layerArrows);
 
-    getLccData();
+    // getLccData(arrowGap);
 
     return () => {
       sourceArrows.clear();
@@ -115,7 +118,7 @@ const ProjectionTestLcc = ({ SetMap, mapId }) => {
     }
   };
 
-  const getLccData = async () => {
+  const getLccData = async (gap = arrowGap) => {
     sourceArrows.clear();
     layerArrows.getSource().clear();
     sourceCoords.clear();
@@ -126,7 +129,7 @@ const ProjectionTestLcc = ({ SetMap, mapId }) => {
     await axios
       .post(`${import.meta.env.VITE_WIND_API_URL}/api/lcc`, {
         bgPoll: bgPoll,
-        arrowGap: arrowGap,
+        arrowGap: gap,
       })
       .then(res => res.data)
       .then(data => {
@@ -192,11 +195,26 @@ const ProjectionTestLcc = ({ SetMap, mapId }) => {
         alert('데이터를 가져오는 데 실패했습니다. 나중에 다시 시도해주세요.');
       });
 
-    const arrowImg = document.getElementById('arrowImg');
-    arrowImg.drawImage();
-
     document.body.style.cursor = 'default';
   };
+
+  // zoom 크기에 따라 gap 자동 조절
+  const gapForZoom = z => (z <= 3 ? 4 : z <= 4 ? 3 : z <= 5 ? 2 : 1);
+
+  useEffect(() => {
+    if (!map.ol_uid) return;
+
+    const onMoveEnd = () => {
+      const res = map.getView().getZoom();
+      const gap = gapForZoom(res);
+      console.log(`zoom: ${res}, gap: ${gap}`);
+
+      setArrowGap(gap);
+      getLccData(gap);
+    };
+
+    map.on('moveend', onMoveEnd);
+  }, [map]);
 
   return (
     <Container id={mapId}>
@@ -221,8 +239,10 @@ const ProjectionTestLcc = ({ SetMap, mapId }) => {
           </span>
           <Select
             className="text-sm"
-            defaultValue={arrowGap}
-            onChange={e => setArrowGap(Number(e.target.value))}
+            value={arrowGap}
+            onChange={e => {
+              setArrowGap(Number(e.target.value));
+            }}
           >
             <Option value="1">1</Option>
             <Option value="2">2</Option>
@@ -230,7 +250,7 @@ const ProjectionTestLcc = ({ SetMap, mapId }) => {
             <Option value="4">4</Option>
           </Select>
         </GridWrapper>
-        <Button className="text-sm" onClick={getLccData}>
+        <Button className="text-sm" onClick={() => getLccData(arrowGap)}>
           적용
         </Button>
       </SettingContainer>
@@ -269,13 +289,82 @@ const HeatmapLegend = ({ intervals, title, visible }) => {
         ))}
       <br />
       <LegendTitle>WS(m/s)</LegendTitle>
-      <LegendItem>
-        <div id="arrowImg"></div>
-        <RangeLabel>1.0</RangeLabel>
-      </LegendItem>
+      {arrowLegendDatas.map(item => (
+        <LegendItem key={item.ws}>
+          <ArrowImg ws={item.ws} />
+          <RangeLabel>{Number(item.ws).toFixed(1)}</RangeLabel>
+        </LegendItem>
+      ))}
     </LegendContainer>
   );
 };
+
+const ArrowImg = ({ ws }) => {
+  const arrowImgRef = useRef(null);
+
+  useEffect(() => {
+    const canvas = arrowImgRef.current;
+    if (!canvas) return;
+
+    const size = 24;
+    const pr = window.devicePixelRatio || 1;
+    canvas.width = size * 1.5 * pr;
+    canvas.height = size * pr;
+    canvas.style.width = `${size * 1.5}px`;
+    canvas.style.height = `${size}px`;
+    canvas.style.marginRight = `10px`;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const shaft = new RegularShape({
+      points: 2,
+      radius: 5,
+      stroke: new Stroke({
+        width: 2,
+        color: 'black',
+      }),
+      rotateWithView: true,
+    });
+
+    const head = new RegularShape({
+      points: 3,
+      radius: 5,
+      fill: new Fill({
+        color: 'black',
+      }),
+      rotateWithView: true,
+    });
+
+    const angle = ((270 - 180) * Math.PI) / 180; // 오른쪽 수평
+    const scale = ws / 10;
+    shaft.setScale([1, scale]);
+    shaft.setRotation(angle);
+    head.setDisplacement([0, head.getRadius() / 2 + shaft.getRadius() * scale]);
+    head.setRotation(angle);
+
+    const vc = toContext(ctx, {
+      size: [canvas.width, canvas.height],
+      pixelRatio: pr,
+    });
+    vc.setStyle(new Style({ image: shaft }));
+    vc.drawGeometry(new Point([canvas.width / 2, canvas.height / 2]));
+    vc.setStyle(new Style({ image: head }));
+    vc.drawGeometry(new Point([canvas.width / 2, canvas.height / 2]));
+  }, []);
+
+  return <canvas ref={arrowImgRef} />;
+};
+
+const arrowLegendDatas = [
+  { ws: 1.0 },
+  { ws: 3.0 },
+  { ws: 5.0 },
+  { ws: 7.0 },
+  { ws: 9.0 },
+];
 
 const polygonStyles = {
   O3: [
@@ -431,212 +520,6 @@ const polygonStyles = {
     },
   ],
 };
-const o3Styles = [
-  {
-    min: 0,
-    max: 0.0301,
-    circleRadius: 5,
-    circleFillColor: 'rgba(0, 100, 255, 1)',
-    circleStrokeColor: 'rgba(180, 210, 255, 1)',
-    circleStrokeWidth: 1,
-    gradient: [
-      'rgba(180, 210, 255, 1)', // 연파랑
-      'rgba(0, 100, 255, 1)', // 진파랑
-    ],
-  },
-  {
-    min: 0.0301,
-    max: 0.0901,
-    circleRadius: 5,
-    circleFillColor: 'rgba(0, 128, 0, 1)',
-    circleStrokeColor: 'gray',
-    circleStrokeWidth: 1,
-    gradient: [
-      'rgba(180, 255, 180, 1)', // 연초록
-      // 'rgba(255, 255, 255, 1)',
-      'rgba(0, 128, 0, 1)', // 진초록
-    ],
-  },
-  {
-    min: 0.0901,
-    max: 0.1501,
-    circleRadius: 4,
-    circleFillColor: 'rgba(255, 200, 0, 1)',
-    circleStrokeColor: 'gray',
-    circleStrokeWidth: 1,
-    gradient: [
-      'rgba(255, 245, 180, 1)', // 연노랑
-      // 'rgba(255, 255, 255, 1)',
-      'rgba(255, 200, 0, 1)', // 진노랑
-    ],
-  },
-  {
-    min: 0.1501,
-    max: 0.3001,
-    circleRadius: 5,
-    circleFillColor: 'rgba(200, 0, 0, 1)',
-    circleStrokeColor: 'rgba(255, 180, 180, 1)',
-    circleStrokeWidth: 1,
-    gradient: [
-      'rgba(255, 180, 180, 1)', // 연빨강
-      'rgba(200, 0, 0, 1)', // 진빨강
-    ],
-  },
-];
-const tmpStyles = [
-  {
-    min: 0,
-    max: 10,
-    circleRadius: 5,
-    circleFillColor: 'rgba(0, 100, 255, 1)',
-    circleStrokeColor: 'rgba(180, 210, 255, 1)',
-    circleStrokeWidth: 1,
-    gradient: [
-      'rgba(180, 210, 255, 1)', // 연파랑
-      'rgba(0, 100, 255, 1)', // 진파랑
-    ],
-  },
-  {
-    min: 10,
-    max: 20,
-    circleRadius: 5,
-    circleFillColor: 'rgba(0, 128, 0, 1)',
-    circleStrokeColor: 'gray',
-    circleStrokeWidth: 1,
-    gradient: [
-      'rgba(180, 255, 180, 1)', // 연초록
-      // 'rgba(255, 255, 255, 1)',
-      'rgba(0, 128, 0, 1)', // 진초록
-    ],
-  },
-  {
-    min: 20,
-    max: 30,
-    circleRadius: 4,
-    circleFillColor: 'rgba(255, 200, 0, 1)',
-    circleStrokeColor: 'gray',
-    circleStrokeWidth: 1,
-    gradient: [
-      'rgba(255, 245, 180, 1)', // 연노랑
-      // 'rgba(255, 255, 255, 1)',
-      'rgba(255, 200, 0, 1)', // 진노랑
-    ],
-  },
-  {
-    min: 30,
-    max: 40,
-    circleRadius: 5,
-    circleFillColor: 'rgba(200, 0, 0, 1)',
-    circleStrokeColor: 'rgba(255, 180, 180, 1)',
-    circleStrokeWidth: 1,
-    gradient: [
-      'rgba(255, 180, 180, 1)', // 연빨강
-      'rgba(200, 0, 0, 1)', // 진빨강
-    ],
-  },
-];
-
-const pm10Styles = [
-  {
-    min: 0,
-    max: 31,
-    circleRadius: 5,
-    circleFillColor: 'rgba(0, 100, 255, 1)',
-    circleStrokeColor: 'rgba(180, 210, 255, 1)',
-    circleStrokeWidth: 1,
-    gradient: [
-      'rgba(180, 210, 255, 1)', // 연파랑
-      'rgba(0, 100, 255, 1)', // 진파랑
-    ],
-  },
-  {
-    min: 31,
-    max: 81,
-    circleRadius: 5,
-    circleFillColor: 'rgba(180, 255, 180, 1)',
-    circleStrokeColor: 'rgba(0, 128, 0, 1)',
-    circleStrokeWidth: 1,
-    gradient: [
-      'rgba(180, 255, 180, 1)', // 연초록
-      'rgba(0, 128, 0, 1)', // 진초록
-    ],
-  },
-  {
-    min: 81,
-    max: 151,
-    circleRadius: 5,
-    circleFillColor: 'rgba(255, 245, 180, 1)',
-    circleStrokeColor: 'rgba(255, 200, 0, 1)',
-    circleStrokeWidth: 1,
-    gradient: [
-      'rgba(255, 245, 180, 1)', // 연노랑
-      'rgba(255, 200, 0, 1)', // 진노랑
-    ],
-  },
-  {
-    min: 151,
-    max: 320,
-    circleRadius: 5,
-    circleFillColor: 'rgba(255, 180, 180, 1)',
-    circleStrokeColor: 'rgba(200, 0, 0, 1)',
-    circleStrokeWidth: 1,
-    gradient: [
-      'rgba(255, 180, 180, 1)', // 연빨강
-      'rgba(200, 0, 0, 1)', // 진빨강
-    ],
-  },
-];
-
-const pm25Styles = [
-  {
-    min: 0,
-    max: 16,
-    circleRadius: 5,
-    circleFillColor: 'rgba(0, 100, 255, 1)',
-    circleStrokeColor: 'rgba(180, 210, 255, 1)',
-    circleStrokeWidth: 1,
-    gradient: [
-      'rgba(180, 210, 255, 1)', // 연파랑
-      'rgba(0, 100, 255, 1)', // 진파랑
-    ],
-  },
-  {
-    min: 16,
-    max: 36,
-    circleRadius: 5,
-    circleFillColor: 'rgba(180, 255, 180, 1)',
-    circleStrokeColor: 'rgba(0, 128, 0, 1)',
-    circleStrokeWidth: 1,
-    gradient: [
-      'rgba(180, 255, 180, 1)', // 연초록
-      'rgba(0, 128, 0, 1)', // 진초록
-    ],
-  },
-  {
-    min: 36,
-    max: 76,
-    circleRadius: 5,
-    circleFillColor: 'rgba(255, 245, 180, 1)',
-    circleStrokeColor: 'rgba(255, 200, 0, 1)',
-    circleStrokeWidth: 1,
-    gradient: [
-      'rgba(255, 245, 180, 1)', // 연노랑
-      'rgba(255, 200, 0, 1)', // 진노랑
-    ],
-  },
-  {
-    min: 76,
-    max: 200,
-    circleRadius: 5,
-    circleFillColor: 'rgba(255, 180, 180, 1)',
-    circleStrokeColor: 'rgba(200, 0, 0, 1)',
-    circleStrokeWidth: 1,
-    gradient: [
-      'rgba(255, 180, 180, 1)', // 연빨강
-      'rgba(200, 0, 0, 1)', // 진빨강
-    ],
-  },
-];
 
 const Container = styled.div`
   width: 100%;
@@ -854,6 +737,7 @@ const ColorBox = styled.div`
 
 const RangeLabel = styled.span`
   font-size: 14px;
+  font-variant-numeric: tabular-nums;
 `;
 
 const SettingContainer = styled.div`
