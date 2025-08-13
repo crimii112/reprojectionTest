@@ -11,7 +11,7 @@ import { Feature } from 'ol';
 
 import MapContext from '@/components/map/MapContext';
 import { Option, Select } from '@/components/ui/select-box';
-import { Button, GridWrapper } from '@/components/ui/common';
+import { Button, GridWrapper, Input } from '@/components/ui/common';
 import { toContext } from 'ol/render';
 
 /**
@@ -23,7 +23,8 @@ const ProjectionTestLcc = ({ SetMap, mapId }) => {
   const [bgPoll, setBgPoll] = useState('O3');
   const [arrowGap, setArrowGap] = useState(3);
 
-  const arrowImgRef = useRef(null);
+  const [pollLegendOn, setPollLegendOn] = useState(true);
+  const [wsLegendOn, setWsLegendOn] = useState(true);
 
   const sourceCoordsRef = useRef(new VectorSource({ wrapX: false }));
   const sourceCoords = sourceCoordsRef.current;
@@ -266,39 +267,63 @@ const ProjectionTestLcc = ({ SetMap, mapId }) => {
         <Button className="text-sm" onClick={() => getLccData(arrowGap)}>
           적용
         </Button>
+        <GridWrapper className="grid-cols-[1fr_7fr] gap-1 items-center">
+          <Input
+            type="checkbox"
+            className="w-4 h-4"
+            defaultChecked={pollLegendOn}
+            onChange={() => setPollLegendOn(prev => !prev)}
+          />
+          <span>물질 범례 on</span>
+        </GridWrapper>
+        <GridWrapper className="grid-cols-[1fr_7fr] gap-1 items-center">
+          <Input
+            type="checkbox"
+            className="w-4 h-4"
+            defaultChecked={wsLegendOn}
+            onChange={() => setWsLegendOn(prev => !prev)}
+          />
+          <span>풍속 범례 on</span>
+        </GridWrapper>
       </SettingContainer>
       {/* <HeatmapLegend
         intervals={polygonStyles[bgPoll]}
         title={bgPoll}
         visible={true}
       /> */}
-      <PolygonLegend />
+      <PolygonLegend pollLegendOn={pollLegendOn} wsLegendOn={wsLegendOn} />
     </Container>
   );
 };
 
 export { ProjectionTestLcc };
 
-const PolygonLegend = ({}) => {
+const PolygonLegend = ({ pollLegendOn, wsLegendOn }) => {
   return (
-    <LegendContainer>
-      <LegendTitle>O3</LegendTitle>
-      {o3Rgb.toReversed().map(item => (
-        <div className="flex flex-row items-end gap-1 h-5" key={item.min}>
-          <div className="w-6 h-full" style={{ backgroundColor: item.color }} />
-          <span className="text-sm leading-none translate-y-[5px]">
-            {item.min.toFixed(3)}
-          </span>
-        </div>
-      ))}
-      <br />
-      <LegendTitle>WS(m/s)</LegendTitle>
-      {arrowLegendDatas.map(item => (
-        <LegendItem key={item.ws}>
-          <ArrowImg ws={item.ws} />
-          <RangeLabel>{Number(item.ws).toFixed(1)}</RangeLabel>
-        </LegendItem>
-      ))}
+    <LegendContainer className="flex flex-col gap-5">
+      <div className={pollLegendOn ? '' : 'hidden'}>
+        <LegendTitle>O3</LegendTitle>
+        {o3Rgb.toReversed().map(item => (
+          <div className="flex flex-row items-end gap-1 h-5" key={item.min}>
+            <div
+              className="w-6 h-full"
+              style={{ backgroundColor: item.color }}
+            />
+            <span className="text-sm leading-none translate-y-[5px]">
+              {item.min.toFixed(3)}
+            </span>
+          </div>
+        ))}
+      </div>
+      <div className={wsLegendOn ? '' : 'hidden'}>
+        <LegendTitle>WS(m/s)</LegendTitle>
+        {arrowLegendDatas.map(item => (
+          <LegendItem key={item.ws}>
+            <ArrowImg ws={item.ws} />
+            <RangeLabel>{Number(item.ws).toFixed(1)}</RangeLabel>
+          </LegendItem>
+        ))}
+      </div>
     </LegendContainer>
   );
 };
