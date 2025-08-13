@@ -99,19 +99,32 @@ const ProjectionTestLcc = ({ SetMap, mapId }) => {
   const setPolygonFeatureStyle = f => {
     const value = f.get('value');
 
-    const style = polygonStyles[bgPoll].find(
-      s => value >= s.min && value < s.max
-    );
+    // 1. 보간 방식
+    // const style = polygonStyles[bgPoll].find(
+    //   s => value >= s.min && value < s.max
+    // );
+    // if (style) {
+    //   f.setStyle(
+    //     new Style({
+    //       fill: new Fill({
+    //         color: getInterpolateColor(
+    //           style.min,
+    //           style.max,
+    //           style.gradient,
+    //           value
+    //         ),
+    //       }),
+    //     })
+    //   );
+    // }
+
+    // 2. 색상 지정 방식
+    const style = o3Rgb.find(s => value >= s.min && value < s.max);
     if (style) {
       f.setStyle(
         new Style({
           fill: new Fill({
-            color: getInterpolateColor(
-              style.min,
-              style.max,
-              style.gradient,
-              value
-            ),
+            color: style.color,
           }),
         })
       );
@@ -254,16 +267,41 @@ const ProjectionTestLcc = ({ SetMap, mapId }) => {
           적용
         </Button>
       </SettingContainer>
-      <HeatmapLegend
+      {/* <HeatmapLegend
         intervals={polygonStyles[bgPoll]}
         title={bgPoll}
         visible={true}
-      />
+      /> */}
+      <PolygonLegend />
     </Container>
   );
 };
 
 export { ProjectionTestLcc };
+
+const PolygonLegend = ({}) => {
+  return (
+    <LegendContainer>
+      <LegendTitle>O3</LegendTitle>
+      {o3Rgb.toReversed().map(item => (
+        <div className="flex flex-row items-end gap-1 h-5" key={item.min}>
+          <div className="w-6 h-full" style={{ backgroundColor: item.color }} />
+          <span className="text-sm leading-none translate-y-[5px]">
+            {item.min.toFixed(3)}
+          </span>
+        </div>
+      ))}
+      <br />
+      <LegendTitle>WS(m/s)</LegendTitle>
+      {arrowLegendDatas.map(item => (
+        <LegendItem key={item.ws}>
+          <ArrowImg ws={item.ws} />
+          <RangeLabel>{Number(item.ws).toFixed(1)}</RangeLabel>
+        </LegendItem>
+      ))}
+    </LegendContainer>
+  );
+};
 
 // 히트맵 범례
 const HeatmapLegend = ({ intervals, title, visible }) => {
@@ -306,11 +344,11 @@ const ArrowImg = ({ ws }) => {
     const canvas = arrowImgRef.current;
     if (!canvas) return;
 
-    const size = 24;
+    const size = 20;
     const pr = window.devicePixelRatio || 1;
-    canvas.width = size * 1.5 * pr;
+    canvas.width = size * pr;
     canvas.height = size * pr;
-    canvas.style.width = `${size * 1.5}px`;
+    canvas.style.width = `${size}px`;
     canvas.style.height = `${size}px`;
     canvas.style.marginRight = `10px`;
 
@@ -366,6 +404,108 @@ const arrowLegendDatas = [
   { ws: 9.0 },
 ];
 
+const o3Rgb = [
+  {
+    min: 0.0,
+    max: 0.01,
+    color: 'rgba(135, 192, 232, 1)',
+  },
+  {
+    min: 0.01,
+    max: 0.02,
+    color: 'rgba(76, 162, 244, 1)',
+  },
+  {
+    min: 0.02,
+    max: 0.03,
+    color: 'rgba(53, 150, 249, 1)',
+  },
+  {
+    min: 0.03,
+    max: 0.04,
+    color: 'rgba(99, 254, 99, 1)',
+  },
+  {
+    min: 0.04,
+    max: 0.05,
+    color: 'rgba(0, 234, 0, 1)',
+  },
+  {
+    min: 0.05,
+    max: 0.06,
+    color: 'rgba(0, 216, 0, 1)',
+  },
+  {
+    min: 0.06,
+    max: 0.07,
+    color: 'rgba(0, 177, 0, 1)',
+  },
+  {
+    min: 0.07,
+    max: 0.08,
+    color: 'rgba(0, 138, 0, 1)',
+  },
+  {
+    min: 0.08,
+    max: 0.09,
+    color: 'rgba(0, 117, 0, 1)',
+  },
+  {
+    min: 0.09,
+    max: 0.1,
+    color: 'rgba(224, 224, 0, 1)',
+  },
+  {
+    min: 0.1,
+    max: 0.11,
+    color: 'rgba(193, 193, 0, 1)',
+  },
+  {
+    min: 0.11,
+    max: 0.12,
+    color: 'rgba(177, 177, 0, 1)',
+  },
+  {
+    min: 0.12,
+    max: 0.13,
+    color: 'rgba(146, 146, 0, 1)',
+  },
+  {
+    min: 0.13,
+    max: 0.14,
+    color: 'rgba(115, 115, 0, 1)',
+  },
+  {
+    min: 0.14,
+    max: 0.15,
+    color: 'rgba(100, 100, 0, 1)',
+  },
+  {
+    min: 0.15,
+    max: 0.16,
+    color: 'rgba(255, 150, 150, 1)',
+  },
+  {
+    min: 0.16,
+    max: 0.17,
+    color: 'rgba(255, 120, 120, 1)',
+  },
+  {
+    min: 0.17,
+    max: 0.18,
+    color: 'rgba(255, 90, 90, 1)',
+  },
+  {
+    min: 0.18,
+    max: 0.19,
+    color: 'rgba(255, 60, 60, 1)',
+  },
+  {
+    min: 0.19,
+    max: Infinity,
+    color: 'rgba(255, 0, 0, 1)',
+  },
+];
 const polygonStyles = {
   O3: [
     {
