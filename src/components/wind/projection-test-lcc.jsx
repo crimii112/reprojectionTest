@@ -20,6 +20,7 @@ import { toContext } from 'ol/render';
 const ProjectionTestLcc = ({ SetMap, mapId }) => {
   const map = useContext(MapContext);
 
+  const bgPollRef = useRef(null);
   const [bgPoll, setBgPoll] = useState('O3');
   const [arrowGap, setArrowGap] = useState(3);
 
@@ -71,8 +72,6 @@ const ProjectionTestLcc = ({ SetMap, mapId }) => {
     map.addLayer(layerCoords);
     map.addLayer(layerArrows);
 
-    // getLccData(arrowGap);
-
     return () => {
       sourceArrows.clear();
       layerArrows.getSource().clear();
@@ -120,12 +119,18 @@ const ProjectionTestLcc = ({ SetMap, mapId }) => {
     // }
 
     // 2. 색상 지정 방식
-    const style = o3Rgb.find(s => value >= s.min && value < s.max);
+    const style = rgbs[bgPollRef.current.value].find(
+      s => value >= s.min && value < s.max
+    );
     if (style) {
       f.setStyle(
         new Style({
           fill: new Fill({
-            color: style.color,
+            // color: style.color,
+            color: style.color.replace(
+              /rgba\(([^,]+), ([^,]+), ([^,]+), ([^,]+)\)/,
+              (match, r, g, b, a) => `rgba(${r}, ${g}, ${b}, 0.3)`
+            ),
           }),
         })
       );
@@ -142,12 +147,12 @@ const ProjectionTestLcc = ({ SetMap, mapId }) => {
 
     await axios
       .post(`${import.meta.env.VITE_WIND_API_URL}/api/lcc`, {
-        bgPoll: bgPoll,
+        bgPoll: bgPollRef.current.value,
         arrowGap: gap,
       })
       .then(res => res.data)
       .then(data => {
-        console.log(data);
+        // console.log(data);
 
         if (!data.polygonData) return;
 
@@ -218,13 +223,13 @@ const ProjectionTestLcc = ({ SetMap, mapId }) => {
   useEffect(() => {
     if (!map.ol_uid) return;
 
-    const onMoveEnd = () => {
+    const onMoveEnd = async () => {
       const res = map.getView().getZoom();
       const gap = gapForZoom(res);
       console.log(`zoom: ${res}, gap: ${gap}`);
 
       setArrowGap(gap);
-      getLccData(gap);
+      await getLccData(gap);
     };
 
     map.on('moveend', onMoveEnd);
@@ -239,6 +244,7 @@ const ProjectionTestLcc = ({ SetMap, mapId }) => {
           </span>
           <Select
             className="text-sm"
+            ref={bgPollRef}
             defaultValue={bgPoll}
             onChange={e => setBgPoll(e.target.value)}
           >
@@ -291,26 +297,33 @@ const ProjectionTestLcc = ({ SetMap, mapId }) => {
         title={bgPoll}
         visible={true}
       /> */}
-      <PolygonLegend pollLegendOn={pollLegendOn} wsLegendOn={wsLegendOn} />
+      {bgPollRef.current && (
+        <PolygonLegend
+          rgbs={rgbs[bgPollRef.current.value]}
+          title={bgPollRef.current.value}
+          pollLegendOn={pollLegendOn}
+          wsLegendOn={wsLegendOn}
+        />
+      )}
     </Container>
   );
 };
 
 export { ProjectionTestLcc };
 
-const PolygonLegend = ({ pollLegendOn, wsLegendOn }) => {
+const PolygonLegend = ({ rgbs, title, pollLegendOn, wsLegendOn }) => {
   return (
     <LegendContainer className="flex flex-col gap-5">
       <div className={pollLegendOn ? '' : 'hidden'}>
-        <LegendTitle>O3</LegendTitle>
-        {o3Rgb.toReversed().map(item => (
+        <LegendTitle>{title}</LegendTitle>
+        {rgbs.toReversed().map(item => (
           <div className="flex flex-row items-end gap-1 h-5" key={item.min}>
             <div
               className="w-6 h-full"
               style={{ backgroundColor: item.color }}
             />
             <span className="text-sm leading-none translate-y-[5px]">
-              {item.min.toFixed(3)}
+              {title === 'O3' ? item.min.toFixed(3) : item.min}
             </span>
           </div>
         ))}
@@ -429,108 +442,314 @@ const arrowLegendDatas = [
   { ws: 9.0 },
 ];
 
-const o3Rgb = [
-  {
-    min: 0.0,
-    max: 0.01,
-    color: 'rgba(135, 192, 232, 1)',
-  },
-  {
-    min: 0.01,
-    max: 0.02,
-    color: 'rgba(76, 162, 244, 1)',
-  },
-  {
-    min: 0.02,
-    max: 0.03,
-    color: 'rgba(53, 150, 249, 1)',
-  },
-  {
-    min: 0.03,
-    max: 0.04,
-    color: 'rgba(99, 254, 99, 1)',
-  },
-  {
-    min: 0.04,
-    max: 0.05,
-    color: 'rgba(0, 234, 0, 1)',
-  },
-  {
-    min: 0.05,
-    max: 0.06,
-    color: 'rgba(0, 216, 0, 1)',
-  },
-  {
-    min: 0.06,
-    max: 0.07,
-    color: 'rgba(0, 177, 0, 1)',
-  },
-  {
-    min: 0.07,
-    max: 0.08,
-    color: 'rgba(0, 138, 0, 1)',
-  },
-  {
-    min: 0.08,
-    max: 0.09,
-    color: 'rgba(0, 117, 0, 1)',
-  },
-  {
-    min: 0.09,
-    max: 0.1,
-    color: 'rgba(224, 224, 0, 1)',
-  },
-  {
-    min: 0.1,
-    max: 0.11,
-    color: 'rgba(193, 193, 0, 1)',
-  },
-  {
-    min: 0.11,
-    max: 0.12,
-    color: 'rgba(177, 177, 0, 1)',
-  },
-  {
-    min: 0.12,
-    max: 0.13,
-    color: 'rgba(146, 146, 0, 1)',
-  },
-  {
-    min: 0.13,
-    max: 0.14,
-    color: 'rgba(115, 115, 0, 1)',
-  },
-  {
-    min: 0.14,
-    max: 0.15,
-    color: 'rgba(100, 100, 0, 1)',
-  },
-  {
-    min: 0.15,
-    max: 0.16,
-    color: 'rgba(255, 150, 150, 1)',
-  },
-  {
-    min: 0.16,
-    max: 0.17,
-    color: 'rgba(255, 120, 120, 1)',
-  },
-  {
-    min: 0.17,
-    max: 0.18,
-    color: 'rgba(255, 90, 90, 1)',
-  },
-  {
-    min: 0.18,
-    max: 0.19,
-    color: 'rgba(255, 60, 60, 1)',
-  },
-  {
-    min: 0.19,
-    max: Infinity,
-    color: 'rgba(255, 0, 0, 1)',
-  },
-];
+const rgbs = {
+  O3: [
+    {
+      min: 0.0,
+      max: 0.01,
+      color: 'rgba(135, 192, 232, 1)',
+    },
+    {
+      min: 0.01,
+      max: 0.02,
+      color: 'rgba(76, 162, 244, 1)',
+    },
+    {
+      min: 0.02,
+      max: 0.03,
+      color: 'rgba(53, 150, 249, 1)',
+    },
+    {
+      min: 0.03,
+      max: 0.04,
+      color: 'rgba(99, 254, 99, 1)',
+    },
+    {
+      min: 0.04,
+      max: 0.05,
+      color: 'rgba(0, 234, 0, 1)',
+    },
+    {
+      min: 0.05,
+      max: 0.06,
+      color: 'rgba(0, 216, 0, 1)',
+    },
+    {
+      min: 0.06,
+      max: 0.07,
+      color: 'rgba(0, 177, 0, 1)',
+    },
+    {
+      min: 0.07,
+      max: 0.08,
+      color: 'rgba(0, 138, 0, 1)',
+    },
+    {
+      min: 0.08,
+      max: 0.09,
+      color: 'rgba(0, 117, 0, 1)',
+    },
+    {
+      min: 0.09,
+      max: 0.1,
+      color: 'rgba(224, 224, 0, 1)',
+    },
+    {
+      min: 0.1,
+      max: 0.11,
+      color: 'rgba(193, 193, 0, 1)',
+    },
+    {
+      min: 0.11,
+      max: 0.12,
+      color: 'rgba(177, 177, 0, 1)',
+    },
+    {
+      min: 0.12,
+      max: 0.13,
+      color: 'rgba(146, 146, 0, 1)',
+    },
+    {
+      min: 0.13,
+      max: 0.14,
+      color: 'rgba(115, 115, 0, 1)',
+    },
+    {
+      min: 0.14,
+      max: 0.15,
+      color: 'rgba(100, 100, 0, 1)',
+    },
+    {
+      min: 0.15,
+      max: 0.16,
+      color: 'rgba(255, 150, 150, 1)',
+    },
+    {
+      min: 0.16,
+      max: 0.17,
+      color: 'rgba(255, 120, 120, 1)',
+    },
+    {
+      min: 0.17,
+      max: 0.18,
+      color: 'rgba(255, 90, 90, 1)',
+    },
+    {
+      min: 0.18,
+      max: 0.19,
+      color: 'rgba(255, 60, 60, 1)',
+    },
+    {
+      min: 0.19,
+      max: Infinity,
+      color: 'rgba(255, 0, 0, 1)',
+    },
+  ],
+  PM10: [
+    {
+      min: 0,
+      max: 6,
+      color: 'rgba(135, 192, 232, 1)',
+    },
+    {
+      min: 6,
+      max: 18,
+      color: 'rgba(76, 162, 244, 1)',
+    },
+    {
+      min: 18,
+      max: 31,
+      color: 'rgba(53, 150, 249, 1)',
+    },
+    {
+      min: 31,
+      max: 40,
+      color: 'rgba(99, 254, 99, 1)',
+    },
+    {
+      min: 40,
+      max: 48,
+      color: 'rgba(0, 234, 0, 1)',
+    },
+    {
+      min: 48,
+      max: 56,
+      color: 'rgba(0, 216, 0, 1)',
+    },
+    {
+      min: 56,
+      max: 64,
+      color: 'rgba(0, 177, 0, 1)',
+    },
+    {
+      min: 64,
+      max: 72,
+      color: 'rgba(0, 138, 0, 1)',
+    },
+    {
+      min: 72,
+      max: 81,
+      color: 'rgba(0, 117, 0, 1)',
+    },
+    {
+      min: 81,
+      max: 93,
+      color: 'rgba(224, 224, 0, 1)',
+    },
+    {
+      min: 93,
+      max: 105,
+      color: 'rgba(193, 193, 0, 1)',
+    },
+    {
+      min: 105,
+      max: 117,
+      color: 'rgba(177, 177, 0, 1)',
+    },
+    {
+      min: 117,
+      max: 130,
+      color: 'rgba(146, 146, 0, 1)',
+    },
+    {
+      min: 130,
+      max: 142,
+      color: 'rgba(115, 115, 0, 1)',
+    },
+    {
+      min: 142,
+      max: 151,
+      color: 'rgba(100, 100, 0, 1)',
+    },
+    {
+      min: 151,
+      max: 191,
+      color: 'rgba(255, 150, 150, 1)',
+    },
+    {
+      min: 191,
+      max: 231,
+      color: 'rgba(255, 120, 120, 1)',
+    },
+    {
+      min: 231,
+      max: 271,
+      color: 'rgba(255, 90, 90, 1)',
+    },
+    {
+      min: 271,
+      max: 320,
+      color: 'rgba(255, 60, 60, 1)',
+    },
+    {
+      min: 320,
+      max: Infinity,
+      color: 'rgba(255, 0, 0, 1)',
+    },
+  ],
+  'PM2.5': [
+    {
+      min: 0,
+      max: 5,
+      color: 'rgba(135, 192, 232, 1)',
+    },
+    {
+      min: 5,
+      max: 10,
+      color: 'rgba(76, 162, 244, 1)',
+    },
+    {
+      min: 10,
+      max: 16,
+      color: 'rgba(53, 150, 249, 1)',
+    },
+    {
+      min: 16,
+      max: 19,
+      color: 'rgba(99, 254, 99, 1)',
+    },
+    {
+      min: 19,
+      max: 22,
+      color: 'rgba(0, 234, 0, 1)',
+    },
+    {
+      min: 22,
+      max: 26,
+      color: 'rgba(0, 216, 0, 1)',
+    },
+    {
+      min: 26,
+      max: 30,
+      color: 'rgba(0, 177, 0, 1)',
+    },
+    {
+      min: 30,
+      max: 33,
+      color: 'rgba(0, 138, 0, 1)',
+    },
+    {
+      min: 33,
+      max: 36,
+      color: 'rgba(0, 117, 0, 1)',
+    },
+    {
+      min: 36,
+      max: 42,
+      color: 'rgba(224, 224, 0, 1)',
+    },
+    {
+      min: 42,
+      max: 48,
+      color: 'rgba(193, 193, 0, 1)',
+    },
+    {
+      min: 48,
+      max: 55,
+      color: 'rgba(177, 177, 0, 1)',
+    },
+    {
+      min: 55,
+      max: 62,
+      color: 'rgba(146, 146, 0, 1)',
+    },
+    {
+      min: 62,
+      max: 69,
+      color: 'rgba(115, 115, 0, 1)',
+    },
+    {
+      min: 69,
+      max: 76,
+      color: 'rgba(100, 100, 0, 1)',
+    },
+    {
+      min: 76,
+      max: 107,
+      color: 'rgba(255, 150, 150, 1)',
+    },
+    {
+      min: 107,
+      max: 138,
+      color: 'rgba(255, 120, 120, 1)',
+    },
+    {
+      min: 138,
+      max: 169,
+      color: 'rgba(255, 90, 90, 1)',
+    },
+    {
+      min: 169,
+      max: 200,
+      color: 'rgba(255, 60, 60, 1)',
+    },
+    {
+      min: 200,
+      max: Infinity,
+      color: 'rgba(255, 0, 0, 1)',
+    },
+  ],
+};
 const polygonStyles = {
   O3: [
     {
