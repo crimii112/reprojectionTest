@@ -1,213 +1,49 @@
-import { useContext, useEffect, useRef, useState } from 'react';
-import styled from 'styled-components';
+import { useContext, useEffect } from 'react';
 import axios from 'axios';
-
-import VectorLayer from 'ol/layer/Vector';
-import VectorSource from 'ol/source/Vector';
-import { Point, Polygon } from 'ol/geom';
-import { asArray } from 'ol/color';
-import { Fill, RegularShape, Stroke, Style } from 'ol/style';
-import { Feature } from 'ol';
+import styled from 'styled-components';
+import { WindLayer } from 'ol-wind';
 
 import MapContext from '@/components/map/MapContext';
-import { Option, Select } from '@/components/ui/select-box';
-import { Button, GridWrapper, Input } from '@/components/ui/common';
-import { toContext } from 'ol/render';
 
 /**
- * - 소장님 모델 좌표계 적용 => 격자 폴리곤, 바람 화살표 레이어
+ * - utm 좌표계 적용 => 격자 폴리곤, 바람 화살표 레이어
  */
-const ProjectionTestLcc = ({ SetMap, mapId }) => {
+const ProjectionTestUtmOlWind = ({ SetMap, mapId }) => {
   const map = useContext(MapContext);
-
-  const bgPollRef = useRef(null);
-  const [bgPoll, setBgPoll] = useState('O3');
-  const [arrowGap, setArrowGap] = useState(3);
-
-  const [pollLegendOn, setPollLegendOn] = useState(true);
-  const [wsLegendOn, setWsLegendOn] = useState(true);
-
-  const sourceCoordsRef = useRef(new VectorSource({ wrapX: false }));
-  const sourceCoords = sourceCoordsRef.current;
-  const layerCoords = new VectorLayer({
-    source: sourceCoords,
-    id: 'coords',
-    zIndex: 1000,
-  });
-
-  const sourceArrowsRef = useRef(new VectorSource({ wrapX: false }));
-  const sourceArrows = sourceArrowsRef.current;
-  const layerArrows = new VectorLayer({
-    source: sourceArrows,
-    id: 'arrows',
-    zIndex: 10000,
-  });
-
-  const shaft = new RegularShape({
-    points: 2,
-    radius: 5,
-    stroke: new Stroke({
-      width: 2,
-      color: 'black',
-    }),
-    rotateWithView: true,
-  });
-
-  const head = new RegularShape({
-    points: 3,
-    radius: 5,
-    fill: new Fill({
-      color: 'black',
-    }),
-    rotateWithView: true,
-  });
-
-  const styles = [new Style({ image: shaft }), new Style({ image: head })];
 
   useEffect(() => {
     if (!map.ol_uid) return;
 
     if (SetMap) SetMap(map);
 
-    map.addLayer(layerCoords);
-    map.addLayer(layerArrows);
-
-    return () => {
-      sourceArrows.clear();
-      layerArrows.getSource().clear();
-      sourceCoords.clear();
-      layerCoords.getSource().clear();
-    };
+    getUtmData();
   }, [map, map.ol_uid]);
 
-  const getInterpolateColor = (min, max, color, value) => {
-    if (value < min || value > max) {
-      return 'rgba(0, 0, 0, 0)'; // 범위를 벗어난 값은 투명색으로 처리
-    }
-
-    const sColorArr = asArray(color[0]);
-    const eColorArr = asArray(color[1]);
-
-    const ratio = (value - min) / (max - min);
-    const r = Math.round(sColorArr[0] + ratio * (eColorArr[0] - sColorArr[0]));
-    const g = Math.round(sColorArr[1] + ratio * (eColorArr[1] - sColorArr[1]));
-    const b = Math.round(sColorArr[2] + ratio * (eColorArr[2] - sColorArr[2]));
-
-    return `rgba(${r}, ${g}, ${b}, 0.4)`;
-  };
-
-  const setPolygonFeatureStyle = f => {
-    const value = f.get('value');
-
-    // 1. 보간 방식
-    // const style = polygonStyles[bgPoll].find(
-    //   s => value >= s.min && value < s.max
-    // );
-    // if (style) {
-    //   f.setStyle(
-    //     new Style({
-    //       fill: new Fill({
-    //         color: getInterpolateColor(
-    //           style.min,
-    //           style.max,
-    //           style.gradient,
-    //           value
-    //         ),
-    //       }),
-    //     })
-    //   );
-    // }
-
-    // 2. 색상 지정 방식
-    const style = rgbs[bgPollRef.current.value].find(
-      s => value >= s.min && value < s.max
-    );
-    if (style) {
-      f.setStyle(
-        new Style({
-          fill: new Fill({
-            // color: style.color,
-            color: style.color.replace(
-              /rgba\(([^,]+), ([^,]+), ([^,]+), ([^,]+)\)/,
-              (match, r, g, b, a) => `rgba(${r}, ${g}, ${b}, 0.3)`
-            ),
-          }),
-        })
-      );
-    }
-  };
-
-  const getLccData = async (gap = arrowGap) => {
-    sourceArrows.clear();
-    layerArrows.getSource().clear();
-    sourceCoords.clear();
-    layerCoords.getSource().clear();
-
+  const getUtmData = async () => {
     document.body.style.cursor = 'progress';
 
     await axios
-      .post(`${import.meta.env.VITE_WIND_API_URL}/api/lcc`, {
-        bgPoll: bgPollRef.current.value,
-        arrowGap: gap,
-      })
+      .get(`${import.meta.env.VITE_WIND_API_URL}/api/utm/olwind`)
       .then(res => res.data)
       .then(data => {
-        // console.log(data);
+        console.log(data);
 
-        if (!data.polygonData) return;
+        if (!data.windData) return;
 
-        // 좌표 데이터 Polygon Feature 생성
-        const polygonFeatures = data.polygonData.map(item => {
-          const feature = new Feature({
-            geometry: new Polygon([
-              [
-                [item.lon - 4500, item.lat + 4500],
-                [item.lon - 4500, item.lat - 4500],
-                [item.lon + 4500, item.lat - 4500],
-                [item.lon + 4500, item.lat + 4500],
-                [item.lon - 4500, item.lat + 4500],
-                // [item.lon - 13500, item.lat + 13500],
-                // [item.lon - 13500, item.lat - 13500],
-                // [item.lon + 13500, item.lat - 13500],
-                // [item.lon + 13500, item.lat + 13500],
-                // [item.lon - 13500, item.lat + 13500],
-              ],
-            ]),
-            value: item.value,
-          });
-          return feature;
+        const windLayer = new WindLayer(data.windData, {
+          forceRender: true,
+          zIndex: 5000,
+          windOptions: {
+            velocityScale: 0.0003, // 바람 속도에 따라 움직이는 속도 배율 (기본: 0.005)
+            paths: 7000, // 동시에 렌더링할 입자 수 (기본: 5000)
+            lineWidth: 1, // 입자 선의 두께 (기본: 1)
+            speedFactor: 1, // 입자 속도 배율 (velocityScale과 별개) (기본: 1)
+            particleAge: 100, // 입자의 수명 (기본: 60)
+          },
+          colorScale: 'gray',
         });
 
-        polygonFeatures.forEach(f => setPolygonFeatureStyle(f));
-        sourceCoords.addFeatures(polygonFeatures);
-
-        if (!data.arrowData) return;
-
-        // 바람 화살표
-        const arrowFeatures = data.arrowData.map(item => {
-          const feature = new Feature({
-            geometry: new Point([item.lon, item.lat]),
-            wd: item.wd,
-            ws: item.ws,
-          });
-          return feature;
-        });
-        sourceArrows.addFeatures(arrowFeatures);
-
-        layerArrows.setStyle(f => {
-          const wd = f.get('wd');
-          const ws = f.get('ws');
-          const angle = ((wd - 180) * Math.PI) / 180;
-          const scale = ws / 10;
-          shaft.setScale([1, scale]);
-          shaft.setRotation(angle);
-          head.setDisplacement([
-            0,
-            head.getRadius() / 2 + shaft.getRadius() * scale,
-          ]);
-          head.setRotation(angle);
-          return styles;
-        });
+        map.addLayer(windLayer);
       })
       .catch(error => {
         console.error('Error fetching data:', error);
@@ -217,230 +53,10 @@ const ProjectionTestLcc = ({ SetMap, mapId }) => {
     document.body.style.cursor = 'default';
   };
 
-  // zoom 크기에 따라 gap 자동 조절
-  const gapForZoom = z => (z <= 3 ? 4 : z <= 4 ? 3 : z <= 5 ? 2 : 1);
-
-  useEffect(() => {
-    if (!map.ol_uid) return;
-
-    const onMoveEnd = async () => {
-      const res = map.getView().getZoom();
-      const gap = gapForZoom(res);
-      console.log(`zoom: ${res}, gap: ${gap}`);
-
-      setArrowGap(gap);
-      await getLccData(gap);
-    };
-
-    map.on('moveend', onMoveEnd);
-  }, [map]);
-
-  return (
-    <Container id={mapId}>
-      <SettingContainer>
-        <GridWrapper className="grid-cols-[1fr_2fr] gap-1">
-          <span className="flex items-center justify-center text-sm">
-            배경 물질
-          </span>
-          <Select
-            className="text-sm"
-            ref={bgPollRef}
-            defaultValue={bgPoll}
-            onChange={e => setBgPoll(e.target.value)}
-          >
-            <Option value="O3">O3</Option>
-            <Option value="PM10">PM10</Option>
-            <Option value="PM2.5">PM2.5</Option>
-          </Select>
-        </GridWrapper>
-        <GridWrapper className="grid-cols-[1fr_2fr] gap-1">
-          <span className="flex items-center justify-center text-sm">
-            바람 간격
-          </span>
-          <Select
-            className="text-sm"
-            value={arrowGap}
-            onChange={e => {
-              setArrowGap(Number(e.target.value));
-            }}
-          >
-            <Option value="1">1</Option>
-            <Option value="2">2</Option>
-            <Option value="3">3</Option>
-            <Option value="4">4</Option>
-          </Select>
-        </GridWrapper>
-        <Button className="text-sm" onClick={() => getLccData(arrowGap)}>
-          적용
-        </Button>
-        <GridWrapper className="grid-cols-[1fr_7fr] gap-1 items-center">
-          <Input
-            type="checkbox"
-            className="w-4 h-4"
-            defaultChecked={pollLegendOn}
-            onChange={() => setPollLegendOn(prev => !prev)}
-          />
-          <span>물질 범례 on</span>
-        </GridWrapper>
-        <GridWrapper className="grid-cols-[1fr_7fr] gap-1 items-center">
-          <Input
-            type="checkbox"
-            className="w-4 h-4"
-            defaultChecked={wsLegendOn}
-            onChange={() => setWsLegendOn(prev => !prev)}
-          />
-          <span>풍속 범례 on</span>
-        </GridWrapper>
-      </SettingContainer>
-      {/* <HeatmapLegend
-        intervals={polygonStyles[bgPoll]}
-        title={bgPoll}
-        visible={true}
-      /> */}
-      {bgPollRef.current && (
-        <PolygonLegend
-          rgbs={rgbs[bgPollRef.current.value]}
-          title={bgPollRef.current.value}
-          pollLegendOn={pollLegendOn}
-          wsLegendOn={wsLegendOn}
-        />
-      )}
-    </Container>
-  );
+  return <Container id={mapId} />;
 };
 
-export { ProjectionTestLcc };
-
-const PolygonLegend = ({ rgbs, title, pollLegendOn, wsLegendOn }) => {
-  return (
-    <LegendContainer className="flex flex-col gap-5">
-      <div className={pollLegendOn ? '' : 'hidden'}>
-        <LegendTitle>{title}</LegendTitle>
-        {rgbs.toReversed().map(item => (
-          <div className="flex flex-row items-end gap-1 h-5" key={item.min}>
-            <div
-              className="w-6 h-full"
-              style={{ backgroundColor: item.color }}
-            />
-            <span className="text-sm leading-none translate-y-[5px]">
-              {title === 'O3' ? item.min.toFixed(3) : item.min}
-            </span>
-          </div>
-        ))}
-      </div>
-      <div className={wsLegendOn ? '' : 'hidden'}>
-        <LegendTitle>WS(m/s)</LegendTitle>
-        {arrowLegendDatas.map(item => (
-          <LegendItem key={item.ws}>
-            <ArrowImg ws={item.ws} />
-            <RangeLabel>{Number(item.ws).toFixed(1)}</RangeLabel>
-          </LegendItem>
-        ))}
-      </div>
-    </LegendContainer>
-  );
-};
-
-// 히트맵 범례
-const HeatmapLegend = ({ intervals, title, visible }) => {
-  return (
-    <LegendContainer className={visible ? '' : 'hidden'}>
-      <LegendTitle>{title.toUpperCase()}</LegendTitle>
-      {intervals
-        .slice()
-        .reverse()
-        .map((interval, idx) => (
-          <LegendItem key={idx}>
-            <ColorBox
-              style={{
-                background: `linear-gradient(to right, ${interval.gradient.join(
-                  ', '
-                )})`,
-              }}
-            />
-            <RangeLabel>
-              {interval.min} ~ {interval.max}
-            </RangeLabel>
-          </LegendItem>
-        ))}
-      <br />
-      <LegendTitle>WS(m/s)</LegendTitle>
-      {arrowLegendDatas.map(item => (
-        <LegendItem key={item.ws}>
-          <ArrowImg ws={item.ws} />
-          <RangeLabel>{Number(item.ws).toFixed(1)}</RangeLabel>
-        </LegendItem>
-      ))}
-    </LegendContainer>
-  );
-};
-
-const ArrowImg = ({ ws }) => {
-  const arrowImgRef = useRef(null);
-
-  useEffect(() => {
-    const canvas = arrowImgRef.current;
-    if (!canvas) return;
-
-    const size = 20;
-    const pr = window.devicePixelRatio || 1;
-    canvas.width = size * pr;
-    canvas.height = size * pr;
-    canvas.style.width = `${size}px`;
-    canvas.style.height = `${size}px`;
-    canvas.style.marginRight = `10px`;
-
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    const shaft = new RegularShape({
-      points: 2,
-      radius: 5,
-      stroke: new Stroke({
-        width: 2,
-        color: 'black',
-      }),
-      rotateWithView: true,
-    });
-
-    const head = new RegularShape({
-      points: 3,
-      radius: 5,
-      fill: new Fill({
-        color: 'black',
-      }),
-      rotateWithView: true,
-    });
-
-    const angle = ((270 - 180) * Math.PI) / 180; // 오른쪽 수평
-    const scale = ws / 10;
-    shaft.setScale([1, scale]);
-    shaft.setRotation(angle);
-    head.setDisplacement([0, head.getRadius() / 2 + shaft.getRadius() * scale]);
-    head.setRotation(angle);
-
-    const vc = toContext(ctx, {
-      size: [canvas.width, canvas.height],
-      pixelRatio: pr,
-    });
-    vc.setStyle(new Style({ image: shaft }));
-    vc.drawGeometry(new Point([canvas.width / 2, canvas.height / 2]));
-    vc.setStyle(new Style({ image: head }));
-    vc.drawGeometry(new Point([canvas.width / 2, canvas.height / 2]));
-  }, []);
-
-  return <canvas ref={arrowImgRef} />;
-};
-
-const arrowLegendDatas = [
-  { ws: 1.0 },
-  { ws: 3.0 },
-  { ws: 5.0 },
-  { ws: 7.0 },
-  { ws: 9.0 },
-];
+export { ProjectionTestUtmOlWind };
 
 const rgbs = {
   O3: [

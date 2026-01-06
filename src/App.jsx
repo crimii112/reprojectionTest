@@ -5,6 +5,8 @@ import { MapNgii } from '@/components/map';
 import { ProjectionTest } from '@/components/wind/projection-test';
 import { EarthTest } from '@/components/wind/earth-test';
 import { ProjectionTestLcc } from '@/components/wind/projection-test-lcc';
+import { ProjectionTestUtm } from '@/components/wind/projection-test-utm';
+import { ProjectionTestUtmOlWind } from '@/components/wind/projection-test-utm-ol-wind';
 import { EarthMap } from '@/components/wind/earth-map';
 import { OlEarth } from '@/components/wind/ol-earth';
 
@@ -29,6 +31,26 @@ function App() {
               <div className="w-screen h-screen">
                 <MapNgii id="projectionTestLcc">
                   <ProjectionTestLcc mapId="projectionTestLcc" />
+                </MapNgii>
+              </div>
+            }
+          />
+          <Route
+            path="/utm"
+            element={
+              <div className="w-screen h-screen">
+                <MapNgii id="projectionTestUtm">
+                  <ProjectionTestUtm mapId="projectionTestUtm" />
+                </MapNgii>
+              </div>
+            }
+          />
+          <Route
+            path="/utm/olwind"
+            element={
+              <div className="w-screen h-screen">
+                <MapNgii id="projectionTestUtmOlWind">
+                  <ProjectionTestUtmOlWind mapId="projectionTestUtmOlWind" />
                 </MapNgii>
               </div>
             }

@@ -15,9 +15,9 @@ import { Button, GridWrapper, Input } from '@/components/ui/common';
 import { toContext } from 'ol/render';
 
 /**
- * - 소장님 모델 좌표계 적용 => 격자 폴리곤, 바람 화살표 레이어
+ * - utm 좌표계 적용 => 격자 폴리곤, 바람 화살표 레이어
  */
-const ProjectionTestLcc = ({ SetMap, mapId }) => {
+const ProjectionTestUtm = ({ SetMap, mapId }) => {
   const map = useContext(MapContext);
 
   const bgPollRef = useRef(null);
@@ -72,6 +72,8 @@ const ProjectionTestLcc = ({ SetMap, mapId }) => {
     map.addLayer(layerCoords);
     map.addLayer(layerArrows);
 
+    getUtmData();
+
     return () => {
       sourceArrows.clear();
       layerArrows.getSource().clear();
@@ -119,7 +121,7 @@ const ProjectionTestLcc = ({ SetMap, mapId }) => {
     // }
 
     // 2. 색상 지정 방식
-    const style = rgbs[bgPollRef.current.value].find(
+    const style = rgbs['O3'].find(
       s => value >= s.min && value < s.max
     );
     if (style) {
@@ -129,7 +131,7 @@ const ProjectionTestLcc = ({ SetMap, mapId }) => {
             // color: style.color,
             color: style.color.replace(
               /rgba\(([^,]+), ([^,]+), ([^,]+), ([^,]+)\)/,
-              (match, r, g, b, a) => `rgba(${r}, ${g}, ${b}, 0.3)`
+              (match, r, g, b, a) => `rgba(${r}, ${g}, ${b}, 0.5)`
             ),
           }),
         })
@@ -137,7 +139,7 @@ const ProjectionTestLcc = ({ SetMap, mapId }) => {
     }
   };
 
-  const getLccData = async (gap = arrowGap) => {
+  const getUtmData = async () => {
     sourceArrows.clear();
     layerArrows.getSource().clear();
     sourceCoords.clear();
@@ -146,13 +148,10 @@ const ProjectionTestLcc = ({ SetMap, mapId }) => {
     document.body.style.cursor = 'progress';
 
     await axios
-      .post(`${import.meta.env.VITE_WIND_API_URL}/api/lcc`, {
-        bgPoll: bgPollRef.current.value,
-        arrowGap: gap,
-      })
+      .get(`${import.meta.env.VITE_WIND_API_URL}/api/utm`)
       .then(res => res.data)
       .then(data => {
-        // console.log(data);
+        console.log(data);
 
         if (!data.polygonData) return;
 
@@ -161,16 +160,11 @@ const ProjectionTestLcc = ({ SetMap, mapId }) => {
           const feature = new Feature({
             geometry: new Polygon([
               [
-                [item.lon - 4500, item.lat + 4500],
-                [item.lon - 4500, item.lat - 4500],
-                [item.lon + 4500, item.lat - 4500],
-                [item.lon + 4500, item.lat + 4500],
-                [item.lon - 4500, item.lat + 4500],
-                // [item.lon - 13500, item.lat + 13500],
-                // [item.lon - 13500, item.lat - 13500],
-                // [item.lon + 13500, item.lat - 13500],
-                // [item.lon + 13500, item.lat + 13500],
-                // [item.lon - 13500, item.lat + 13500],
+                [item.lon - 150, item.lat + 150],
+                [item.lon - 150, item.lat - 150],
+                [item.lon + 150, item.lat - 150],
+                [item.lon + 150, item.lat + 150],
+                [item.lon - 150, item.lat + 150],
               ],
             ]),
             value: item.value,
@@ -185,6 +179,9 @@ const ProjectionTestLcc = ({ SetMap, mapId }) => {
 
         // 바람 화살표
         const arrowFeatures = data.arrowData.map(item => {
+          const lon_m = parseFloat(item.lon * 1000);
+          const lat_m = parseFloat(item.lat * 1000);
+
           const feature = new Feature({
             geometry: new Point([item.lon, item.lat]),
             wd: item.wd,
@@ -218,27 +215,27 @@ const ProjectionTestLcc = ({ SetMap, mapId }) => {
   };
 
   // zoom 크기에 따라 gap 자동 조절
-  const gapForZoom = z => (z <= 3 ? 4 : z <= 4 ? 3 : z <= 5 ? 2 : 1);
+  // const gapForZoom = z => (z <= 3 ? 4 : z <= 4 ? 3 : z <= 5 ? 2 : 1);
 
-  useEffect(() => {
-    if (!map.ol_uid) return;
+  // useEffect(() => {
+  //   if (!map.ol_uid) return;
 
-    const onMoveEnd = async () => {
-      const res = map.getView().getZoom();
-      const gap = gapForZoom(res);
-      console.log(`zoom: ${res}, gap: ${gap}`);
+  //   const onMoveEnd = async () => {
+  //     const res = map.getView().getZoom();
+  //     const gap = gapForZoom(res);
+  //     console.log(`zoom: ${res}, gap: ${gap}`);
 
-      setArrowGap(gap);
-      await getLccData(gap);
-    };
+  //     setArrowGap(gap);
+  //     await getUtmData();
+  //   };
 
-    map.on('moveend', onMoveEnd);
-  }, [map]);
+  //   map.on('moveend', onMoveEnd);
+  // }, [map]);
 
   return (
     <Container id={mapId}>
       <SettingContainer>
-        <GridWrapper className="grid-cols-[1fr_2fr] gap-1">
+        {/* <GridWrapper className="grid-cols-[1fr_2fr] gap-1">
           <span className="flex items-center justify-center text-sm">
             배경 물질
           </span>
@@ -252,7 +249,7 @@ const ProjectionTestLcc = ({ SetMap, mapId }) => {
             <Option value="PM10">PM10</Option>
             <Option value="PM2.5">PM2.5</Option>
           </Select>
-        </GridWrapper>
+        </GridWrapper> */}
         <GridWrapper className="grid-cols-[1fr_2fr] gap-1">
           <span className="flex items-center justify-center text-sm">
             바람 간격
@@ -270,10 +267,10 @@ const ProjectionTestLcc = ({ SetMap, mapId }) => {
             <Option value="4">4</Option>
           </Select>
         </GridWrapper>
-        <Button className="text-sm" onClick={() => getLccData(arrowGap)}>
+        <Button className="text-sm" onClick={() => getUtmData()}>
           적용
         </Button>
-        <GridWrapper className="grid-cols-[1fr_7fr] gap-1 items-center">
+        {/* <GridWrapper className="grid-cols-[1fr_7fr] gap-1 items-center">
           <Input
             type="checkbox"
             className="w-4 h-4"
@@ -281,7 +278,7 @@ const ProjectionTestLcc = ({ SetMap, mapId }) => {
             onChange={() => setPollLegendOn(prev => !prev)}
           />
           <span>물질 범례 on</span>
-        </GridWrapper>
+        </GridWrapper> */}
         <GridWrapper className="grid-cols-[1fr_7fr] gap-1 items-center">
           <Input
             type="checkbox"
@@ -309,12 +306,12 @@ const ProjectionTestLcc = ({ SetMap, mapId }) => {
   );
 };
 
-export { ProjectionTestLcc };
+export { ProjectionTestUtm };
 
 const PolygonLegend = ({ rgbs, title, pollLegendOn, wsLegendOn }) => {
   return (
     <LegendContainer className="flex flex-col gap-5">
-      <div className={pollLegendOn ? '' : 'hidden'}>
+      {/* <div className={pollLegendOn ? '' : 'hidden'}>
         <LegendTitle>{title}</LegendTitle>
         {rgbs.toReversed().map(item => (
           <div className="flex flex-row items-end gap-1 h-5" key={item.min}>
@@ -327,7 +324,7 @@ const PolygonLegend = ({ rgbs, title, pollLegendOn, wsLegendOn }) => {
             </span>
           </div>
         ))}
-      </div>
+      </div> */}
       <div className={wsLegendOn ? '' : 'hidden'}>
         <LegendTitle>WS(m/s)</LegendTitle>
         {arrowLegendDatas.map(item => (

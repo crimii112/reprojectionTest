@@ -27,6 +27,10 @@ const MapNgii = ({ children, id = 'ngii' }) => {
     'CUSTOM',
     '+proj=lcc +lat_1=30 +lat_2=60 +lat_0=38 +lon_0=126 +x_0=0 +y_0=0 +a=6370000 +b=6370000 +units=m +no_defs'
   );
+  proj4.defs(
+    'EPSG:32652',
+    '+proj=utm +zone=52 +datum=WGS84 +units=m +no_defs +type=crs'
+  );
   register(proj4);
 
   const epsg5179 = getProjection('EPSG:5179');
@@ -42,6 +46,11 @@ const MapNgii = ({ children, id = 'ngii' }) => {
     transformExtent([90.0, 0.0, 150.0, 55.0], 'EPSG:4326', customProj)
     // transformExtent([60.0, -20.0, 180.0, 80.0], 'EPSG:4326', customProj)
   ); // [-4963916.717923589, -4079529.7265884588, 3372424.289850015, 2329106.5257526683]
+
+  const utmProj = getProjection('EPSG:32652');
+  utmProj.setExtent(
+    transformExtent([124.0, 33.0, 132.0, 39.0], 'EPSG:4326', 'EPSG:32652')
+  );
 
   // EPSG:5179 타일 해상도 목록 (meters per pixel)
   const resolutions = [
@@ -65,7 +74,7 @@ const MapNgii = ({ children, id = 'ngii' }) => {
         url: 'https://api.vworld.kr/req/wmts/1.0.0/752F9EDC-AFA6-31AF-856D-B7A3921E84AE/Base/{z}/{y}/{x}.png',
       }),
       id: 'vworld',
-      minZoom: 4,
+      minZoom: 1,
     }),
     // new TileLayer({
     //   source: new WMTS({
@@ -111,10 +120,12 @@ const MapNgii = ({ children, id = 'ngii' }) => {
       view: new View({
         projection: customProj,
         center: transform([127.5, 36.5], 'EPSG:4326', customProj),
-        extent: customProj.getExtent(),
+        // projection: utmProj,
+        // center: transform([127.5, 36.5], 'EPSG:4326', utmProj),
+        // extent: utmProj.getExtent(),
         maxZoom: resolutions.length - 1,
         minZoom: 0,
-        zoom: 1,
+        zoom: 5,
         constrainResolution: true,
         // resolutions: resolutions,
       }),
@@ -139,6 +150,7 @@ const MapNgii = ({ children, id = 'ngii' }) => {
 
     map.on('singleclick', evt => {
       console.log(evt.coordinate);
+      console.log(transform(evt.coordinate, utmProj, 'EPSG:4326'));
     });
 
     setMapObj(map);
